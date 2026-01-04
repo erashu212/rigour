@@ -146,6 +146,12 @@ export const UNIVERSAL_CONFIG: Config = {
             max_methods: 10,
             max_params: 5,
         },
+        dependencies: {
+            forbid: [],
+        },
+        architecture: {
+            boundaries: [],
+        },
         safety: {
             max_files_changed_per_cycle: 10,
             protected_paths: ['.github/**', 'docs/**', 'rigour.yml'],

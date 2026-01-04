@@ -16,6 +16,17 @@ export const GatesSchema = z.object({
         max_methods: z.number().optional().default(10),
         max_params: z.number().optional().default(5),
     }).optional().default({}),
+    dependencies: z.object({
+        forbid: z.array(z.string()).optional().default([]),
+        trusted_registry: z.string().optional(),
+    }).optional().default({}),
+    architecture: z.object({
+        boundaries: z.array(z.object({
+            from: z.string(),
+            to: z.string(),
+            mode: z.enum(['allow', 'deny']).default('deny'),
+        })).optional().default([]),
+    }).optional().default({}),
     safety: z.object({
         max_files_changed_per_cycle: z.number().optional().default(10),
         protected_paths: z.array(z.string()).optional().default(['.github/**', 'docs/**', 'rigour.yml']),

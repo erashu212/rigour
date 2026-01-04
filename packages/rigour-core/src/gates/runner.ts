@@ -5,6 +5,7 @@ import { ContentGate } from './content.js';
 import { StructureGate } from './structure.js';
 import { ASTGate } from './ast.js';
 import { SafetyGate } from './safety.js';
+import { DependencyGate } from './dependency.js';
 import { execa } from 'execa';
 import { Logger } from '../utils/logger.js';
 
@@ -29,6 +30,7 @@ export class GateRunner {
             this.gates.push(new StructureGate({ requiredFiles: this.config.gates.required_files }));
         }
         this.gates.push(new ASTGate(this.config.gates));
+        this.gates.push(new DependencyGate(this.config));
         this.gates.push(new SafetyGate(this.config.gates));
     }
 

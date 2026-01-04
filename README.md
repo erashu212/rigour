@@ -4,9 +4,9 @@
 > [!NOTE]
 > Rigour is in active development. We prioritize transparency over "vibes".
 
-*   ✅ **Implemented**: `max_file_lines`, `TODO/FIXME` ban, required docs, command gates (lint/test/typecheck), JSON reports, Fix Packets (v2), MCP tools.
-*   🧪 **Beta**: AST-based gates (Complexity, Class methods, Parameters). Currently stable for **TypeScript/JavaScript**.
-*   🧭 **Planned**: Import boundary enforcement, circular dependency detection, PR splitting, automated CI annotations, Python support.
+*   ✅ **Implemented**: `max_file_lines`, `TODO/FIXME` ban, required docs, command gates, JSON reports, Fix Packets (v2), MCP tools.
+*   🧪 **Beta**: AST-based gates (Complexity, Class methods, Parameters), **Architectural Boundaries**, **Dependency Guardians**. Stable for **TS/JS**.
+*   🧭 **Planned**: Circular dependency deeper detection, automated CI annotations, Python/Go support.
 
 ---
 

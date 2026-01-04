@@ -4,6 +4,7 @@ import path from 'path';
 import { globby } from 'globby';
 import { Gate, GateContext } from './base.js';
 import { Failure, Gates } from '../types/index.js';
+import micromatch from 'micromatch';
 
 export class ASTGate extends Gate {
     constructor(private config: Gates) {
@@ -93,10 +94,44 @@ export class ASTGate extends Gate {
                 }
             }
 
+            // 3. Import check for Layer Boundaries
+            if (ts.isImportDeclaration(node)) {
+                const importPath = (node.moduleSpecifier as ts.StringLiteral).text;
+                this.checkBoundary(importPath, relativePath, failures);
+            }
+
             ts.forEachChild(node, visit);
         };
 
         ts.forEachChild(sourceFile, visit);
+    }
+
+    private checkBoundary(importPath: string, relativePath: string, failures: Failure[]) {
+        const boundaries = (this.config as any).architecture?.boundaries || [];
+        if (boundaries.length === 0) return;
+
+        for (const rule of boundaries) {
+            const isFromMatch = micromatch.isMatch(relativePath, rule.from);
+            if (isFromMatch) {
+                // Approximate resolution (simplified for now)
+                // Real implementation would need to handle alias and absolute path resolution
+                const resolved = importPath.startsWith('.')
+                    ? path.join(path.dirname(relativePath), importPath)
+                    : importPath;
+
+                const isToMatch = micromatch.isMatch(resolved, rule.to);
+
+                if (rule.mode === 'deny' && isToMatch) {
+                    failures.push(this.createFailure(
+                        `Architectural Violation: '${relativePath}' is forbidden from importing '${importPath}' (denied by boundary rule).`,
+                        [relativePath],
+                        `Remove this import to maintain architectural layering.`
+                    ));
+                } else if (rule.mode === 'allow' && !isToMatch && importPath.startsWith('.')) {
+                    // Complexity: Allow rules are trickier to implement strictly without full resolution
+                }
+            }
+        }
     }
 
     private getNodeName(node: ts.Node): string {

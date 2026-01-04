@@ -112,12 +112,17 @@ Rigour integrates with all major AI coding tools via **CLI**, **MCP**, or **Agen
 
 ### 🖱️ Cursor & AntiGravity (Automatic Handshake)
 
-Rigour writes a protocol file to `.cursor/rules/rigour.mdc` during `init`. The agent reads this and knows to run quality checks before claiming "Done".
+Rigour establishes an engineering handshake by writing protocol files that agents are trained to follow.
 
 ```bash
 npx @rigour-labs/cli init
-# Creates .cursor/rules/rigour.mdc automatically
 ```
+
+**Files created:**
+- `.cursor/rules/rigour.mdc`: Native enforcement for Cursor.
+- `docs/AGENT_INSTRUCTIONS.md`: Universal protocol for AntiGravity, Claude Code, and other sophisticated agents.
+
+High-performance agents read these protocols and know to run quality checks before claiming "Done".
 
 ### 💻 Claude Code CLI
 

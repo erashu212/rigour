@@ -28,36 +28,50 @@ export async function initCommand(cwd: string) {
         }
     }
 
-    // Agent Handshake (Cursor/AntiGravity)
+    // Agent Handshake (Universal / AntiGravity / Cursor)
+    const rigourDocsDir = path.join(cwd, 'docs');
+    await fs.ensureDir(rigourDocsDir);
+    const instructionsPath = path.join(rigourDocsDir, 'AGENT_INSTRUCTIONS.md');
+
+    const ruleContent = `# 🛡️ Rigour: Engineering Excellence Protocol
+
+You are an Elite Software Engineer. You do not just write code that "works"; you write code that is **modular, maintainable, and rigorously verified.**
+
+## 🚦 The Rigour Loop (Mandatory)
+Before claiming "Done" for any task, you MUST follow this loop:
+
+1.  **Check**: Run \`rigour check\` (via CLI) or use the \`rigour_check_status\` tool (via MCP).
+2.  **Analyze**: If it fails, read \`rigour-report.json\` or run \`rigour_get_fix_packet\` to understand the engineering violations.
+3.  **Refactor**: Apply **SOLID** and **DRY** principles to resolve the violations.
+4.  **Repeat**: Continue until \`rigour check\` returns **PASS**.
+
+## 🧩 Engineering Standards
+- **Single Responsibility**: Keep files small and focused.
+- **DRY (Don't Repeat Yourself)**: Extract common logic into utilities.
+- **Done is Done**: No \`TODO\` or \`FIXME\` comments allowed in the final state.
+
+## 🛠️ Tools
+- \`npx @rigour-labs/cli check\`: Verify current state.
+- \`npx @rigour-labs/cli run -- <agent-command>\`: Self-healing loop.
+`;
+
+    // 1. Create Universal Instructions
+    await fs.writeFile(instructionsPath, ruleContent);
+    console.log(chalk.green('✔ Initialized Universal Agent Handshake (docs/AGENT_INSTRUCTIONS.md)'));
+
+    // 2. Create Cursor Specific Rules (.mdc)
     const cursorRulesDir = path.join(cwd, '.cursor', 'rules');
     await fs.ensureDir(cursorRulesDir);
-    const rulePath = path.join(cursorRulesDir, 'rigour.mdc');
-
-    const ruleContent = `---
+    const mdcPath = path.join(cursorRulesDir, 'rigour.mdc');
+    const mdcContent = `---
 description: Enforcement of Rigour quality gates and best practices.
 globs: **/*
 ---
 
-# Rigour Enforcement
+${ruleContent}`;
 
-You are operating under Rigour engineering discipline.
-
-## Core Rules
-- **Never claim done** until you run \`rigour check\` and it returns PASS.
-- If checks FAIL, fix **only** the listed failures. Do not add new features or refactor unrelated code.
-- Maintain project memory in \`docs/SPEC.md\`, \`docs/ARCH.md\`, and \`docs/DECISIONS.md\`.
-- Keep files modular. If a file exceeds 500 lines, you MUST break it into smaller components.
-- No \`TODO\` or \`FIXME\` comments allowed in the final submission.
-
-## Workflow
-1. Write/Modify code.
-2. Run \`rigour check\`.
-3. If FAIL: Read \`rigour-report.json\` for exact failure points and fix them.
-4. If PASS: You may claim task completion.
-`;
-
-    await fs.writeFile(rulePath, ruleContent);
-    console.log(chalk.green('✔ Initialized Agent Handshake (.cursor/rules/rigour.mdc)'));
+    await fs.writeFile(mdcPath, mdcContent);
+    console.log(chalk.green('✔ Initialized Cursor Handshake (.cursor/rules/rigour.mdc)'));
 
     console.log(chalk.blue('\nRigour is ready. Run `rigour check` to verify your project.'));
 }

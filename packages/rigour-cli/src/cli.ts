@@ -13,7 +13,7 @@ program
 
 program
     .command('init')
-    .description('Initialize VibeGuard in the current directory')
+    .description('Initialize Rigour in the current directory')
     .action(async () => {
         await initCommand(process.cwd());
     });

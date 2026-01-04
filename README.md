@@ -97,14 +97,81 @@ sequenceDiagram
 
 Rigour comes with built-in "Engineering Primitives" that you can configure in `rigour.yml`.
 
+```mermaid
+flowchart LR
+    subgraph Internal Gates
+        A[📏 File Size] --> B{Lines > 500?}
+        B -- Yes --> C[🛑 FAIL]
+        B -- No --> D[✅ PASS]
+        
+        E[🧹 Hygiene] --> F{TODO/FIXME?}
+        F -- Found --> G[🛑 FAIL]
+        F -- Clean --> H[✅ PASS]
+        
+        I[📁 Structure] --> J{Required docs exist?}
+        J -- Missing --> K[🛑 FAIL]
+        J -- Present --> L[✅ PASS]
+    end
+    
+    subgraph Command Gates
+        M[🔧 Lint] --> N[npm run lint]
+        O[🧪 Test] --> P[npm test]
+        Q[📝 TypeCheck] --> R[tsc --noEmit]
+    end
+```
+
 | Primitive | Description | Default Strictness |
 | :--- | :--- | :--- |
-| **Structure** | Enforces max file size (e.g., 300 lines). | **High** (SRP enforcement) |
+| **Structure** | Enforces max file size (e.g., 500 lines). | **High** (SRP enforcement) |
 | **Hygiene** | Bans `TODO`, `FIXME`, and leaked secrets. | **Total** (Zero tolerance) |
 | **Determinism** | Runs `tsc`, `eslint`, or `vitest`. | **Configurable** |
 | **Documentation** | Ensures critical docs exist. | **Medium** |
 
 ---
+
+## 🧠 Memory Preservation
+
+Agents often forget context between sessions. Rigour enforces **Project Memory** by requiring documentation files:
+
+```mermaid
+flowchart TD
+    subgraph Required Memory Files
+        SPEC[docs/SPEC.md<br/>Project Specification]
+        ARCH[docs/ARCH.md<br/>Architecture Decisions]
+        DEC[docs/DECISIONS.md<br/>Design Rationale]
+        TASK[docs/TASKS.md<br/>Task Tracking]
+    end
+    
+    INIT[rigour init] --> SPEC
+    INIT --> ARCH
+    INIT --> DEC
+    INIT --> TASK
+    
+    CHECK[rigour check] --> VERIFY{All files exist?}
+    VERIFY -- No --> FAIL[🛑 FAIL<br/>Memory Loss Detected]
+    VERIFY -- Yes --> PASS[✅ PASS<br/>Memory Preserved]
+```
+
+---
+
+## 📦 Package Architecture
+
+```mermaid
+graph TB
+    subgraph "@rigour-labs"
+        CORE["@rigour-labs/core<br/>Gates Engine & Types"]
+        CLI["@rigour-labs/cli<br/>init | check | run"]
+        MCP["@rigour-labs/mcp<br/>MCP Server for LLMs"]
+    end
+    
+    CLI --> CORE
+    MCP --> CORE
+    
+    USER((User)) --> CLI
+    AGENT((AI Agent)) --> MCP
+    AGENT --> CLI
+```
+
 
 ## 🤖 Agent Integration
 

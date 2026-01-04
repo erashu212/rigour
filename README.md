@@ -65,13 +65,15 @@ The `rigour run` command loops until your agent achieves PASS or hits max iterat
 
 ## 📖 Documentation
 
-| Doc | Description |
+**[📚 Full Documentation →](https://docs.rigour.run/)**
+
+| Quick Links | |
 |:---|:---|
-| [Quick Start](./docs/QUICK_START.md) | Get running in 60 seconds |
-| [Configuration](./docs/CONFIGURATION.md) | Customize gates |
-| [Presets](./docs/PRESETS.md) | Role-based standards (ui/api/data) |
-| [Agent Integration](./docs/AGENT_INTEGRATION.md) | Cursor, Claude, Cline setup |
-| [Fix Packet Schema](./docs/specs/FIX_PACKET_SCHEMA.md) | Agent feedback contract |
+| [Getting Started](https://docs.rigour.run/getting-started/installation) | Install and run in 60 seconds |
+| [CLI Reference](https://docs.rigour.run/cli/commands) | All commands and options |
+| [Configuration](https://docs.rigour.run/getting-started/configuration) | Customize quality gates |
+| [MCP Integration](https://docs.rigour.run/mcp/mcp-server) | AI agent setup |
+| [Concepts](https://docs.rigour.run/concepts/philosophy) | How Rigour works |
 
 ---
 

@@ -1,5 +1,9 @@
 # 🛡️ Rigour Labs
 
+[![npm version](https://img.shields.io/npm/v/@rigour-labs/cli?color=cyan&label=rigour-cli)](https://www.npmjs.com/package/@rigour-labs/cli)
+[![npm downloads](https://img.shields.io/npm/dm/@rigour-labs/cli?color=blue&label=downloads)](https://www.npmjs.com/package/@rigour-labs/cli)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ## 🚦 Status & Trust
 > [!NOTE]
 > Rigour is in active development. We prioritize transparency over "vibes".

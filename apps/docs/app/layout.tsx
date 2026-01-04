@@ -23,7 +23,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     return (
         <html lang="en" dir="ltr" suppressHydrationWarning>
             <Head />
-            <body className={`${inter.className} antialiased`}>
+            <body className={`${inter.className} antialiased selection:bg-cyan-500/30`}>
                 <Layout
                     navbar={<Navbar logo={logo} projectLink="https://github.com/rigour-labs/rigour" />}
                     footer={

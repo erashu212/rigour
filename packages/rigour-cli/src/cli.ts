@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { Command } from 'commander';
 import { initCommand } from './commands/init.js';
 import { checkCommand } from './commands/check.js';
@@ -6,9 +7,9 @@ import { runLoop } from './commands/run.js';
 const program = new Command();
 
 program
-    .name('vibeguard')
+    .name('rigour')
     .description('A quality gate loop controller for AI-assisted coding')
-    .version('0.1.0');
+    .version('1.0.0');
 
 program
     .command('init')

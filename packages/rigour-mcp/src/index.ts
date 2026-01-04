@@ -12,7 +12,7 @@ import { GateRunner, ConfigSchema, Report } from "@rigour-labs/core";
 const server = new Server(
     {
         name: "rigour-mcp",
-        version: "0.1.1",
+        version: "1.0.0",
     },
     {
         capabilities: {
@@ -137,7 +137,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error("Rigour MCP server v0.1.1 running on stdio");
+    console.error("Rigour MCP server v1.0.0 running on stdio");
 }
 
 main().catch((error) => {

@@ -40,19 +40,25 @@ You are an Elite Software Engineer. You do not just write code that "works"; you
 ## 🚦 The Rigour Loop (Mandatory)
 Before claiming "Done" for any task, you MUST follow this loop:
 
-1.  **Check**: Run \`rigour check\` (via CLI) or use the \`rigour_check_status\` tool (via MCP).
-2.  **Analyze**: If it fails, read \`rigour-report.json\` or run \`rigour_get_fix_packet\` to understand the engineering violations.
+1.  **Check**: Run \`npx @rigour-labs/cli check\` to verify compliance.
+2.  **Analyze**: If it fails, read \`rigour-report.json\` for exact failure points.
 3.  **Refactor**: Apply **SOLID** and **DRY** principles to resolve the violations.
-4.  **Repeat**: Continue until \`rigour check\` returns **PASS**.
+4.  **Repeat**: Continue until \`npx @rigour-labs/cli check\` returns **PASS**.
 
 ## 🧩 Engineering Standards
-- **Single Responsibility**: Keep files small and focused.
+- **Single Responsibility**: Keep files small and focused (max 500 lines).
 - **DRY (Don't Repeat Yourself)**: Extract common logic into utilities.
 - **Done is Done**: No \`TODO\` or \`FIXME\` comments allowed in the final state.
+- **Memory Preservation**: Always update docs/SPEC.md, docs/ARCH.md, docs/DECISIONS.md.
 
-## 🛠️ Tools
-- \`npx @rigour-labs/cli check\`: Verify current state.
-- \`npx @rigour-labs/cli run -- <agent-command>\`: Self-healing loop.
+## 🛠️ Commands
+\`\`\`bash
+# Verify current state
+npx @rigour-labs/cli check
+
+# Self-healing agent loop
+npx @rigour-labs/cli run -- <agent-command>
+\`\`\`
 `;
 
     // 1. Create Universal Instructions
@@ -73,5 +79,5 @@ ${ruleContent}`;
     await fs.writeFile(mdcPath, mdcContent);
     console.log(chalk.green('✔ Initialized Cursor Handshake (.cursor/rules/rigour.mdc)'));
 
-    console.log(chalk.blue('\nRigour is ready. Run `rigour check` to verify your project.'));
+    console.log(chalk.blue('\nRigour is ready. Run `npx @rigour-labs/cli check` to verify your project.'));
 }

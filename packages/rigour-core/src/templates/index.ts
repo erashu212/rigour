@@ -16,7 +16,10 @@ export const TEMPLATES: Template[] = [
     {
         name: 'ui',
         markers: [
-            'package.json', // Check deps later
+            'react',
+            'next',
+            'vue',
+            'svelte',
             'next.config.js',
             'vite.config.ts',
             'tailwind.config.js',
@@ -38,10 +41,12 @@ export const TEMPLATES: Template[] = [
     {
         name: 'api',
         markers: [
+            'express',
+            'fastify',
+            'nestjs',
             'go.mod',
             'requirements.txt',
             'pyproject.toml',
-            'package.json', // Check for backend frameworks later
             'app.py',
             'main.go',
             'index.js',

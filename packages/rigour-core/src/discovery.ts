@@ -18,7 +18,7 @@ export class DiscoveryService {
 
         // 1. Detect Role (ui, api, infra, data)
         for (const template of TEMPLATES) {
-            const marker = await this.findFirstMarker(cwd, template.markers);
+            const marker = await this.findFirstMarker(cwd, template.markers, true); // Search content for roles too
             if (marker) {
                 config = this.mergeConfig(config, template.config);
                 matches.preset = { name: template.name, marker };
@@ -79,7 +79,7 @@ export class DiscoveryService {
 
     private async findSourceFiles(cwd: string): Promise<string[]> {
         // Find a few files to sample
-        const extensions = ['.ts', '.js', '.py', '.go', '.java', '.tf'];
+        const extensions = ['.ts', '.js', '.py', '.go', '.java', '.tf', 'package.json'];
         const samples: string[] = [];
 
         const files = await fs.readdir(cwd);

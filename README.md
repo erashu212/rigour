@@ -30,6 +30,18 @@ npx @rigour-labs/cli init
 npx @rigour-labs/cli run -- claude "Refactor the authentication service"
 ```
 
+### 📦 Binary Downloads (Zero-Install)
+If you don't have Node.js or want a standalone binary:
+
+| OS | Architecture | Download URL |
+|:---|:---|:---|
+| **macOS** | Apple Silicon / Intel | [Download](https://github.com/erashu212/rigour/releases/latest/download/rigour-macos) |
+| **Linux** | x64 (Ubuntu/Debian) | [Download](https://github.com/erashu212/rigour/releases/latest/download/rigour-linux) |
+| **Windows** | x64 | [Download](https://github.com/erashu212/rigour/releases/latest/download/rigour-windows.exe) |
+
+**One-liner (Unix):**
+`curl -fsSL https://rigour.builders/install.sh | sh`
+
 ---
 
 ## 🔄 The Run Loop Contract

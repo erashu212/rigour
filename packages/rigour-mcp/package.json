@@ -1,6 +1,10 @@
 {
     "name": "@rigour-labs/mcp",
     "version": "1.0.0",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/erashu212/rigour"
+    },
     "publishConfig": {
         "access": "public",
         "provenance": true

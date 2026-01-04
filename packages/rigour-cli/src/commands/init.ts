@@ -4,9 +4,62 @@ import chalk from 'chalk';
 import yaml from 'yaml';
 import { DiscoveryService } from '@rigour-labs/core';
 
-export async function initCommand(cwd: string) {
+export interface InitOptions {
+    preset?: string;
+    paradigm?: string;
+    dryRun?: boolean;
+    explain?: boolean;
+}
+
+export async function initCommand(cwd: string, options: InitOptions = {}) {
     const discovery = new DiscoveryService();
-    const recommendedConfig = await discovery.discover(cwd);
+    const result = await discovery.discover(cwd);
+    let recommendedConfig = result.config;
+
+    // Override with user options if provided and re-apply template logic if necessary
+    if (options.preset || options.paradigm) {
+        const core = await import('@rigour-labs/core');
+
+        let customBase = { ...core.UNIVERSAL_CONFIG };
+
+        if (options.preset) {
+            const t = core.TEMPLATES.find((t: any) => t.name === options.preset);
+            if (t) customBase = (discovery as any).mergeConfig(customBase, t.config);
+        } else if (recommendedConfig.preset) {
+            const t = core.TEMPLATES.find((t: any) => t.name === recommendedConfig.preset);
+            if (t) customBase = (discovery as any).mergeConfig(customBase, t.config);
+        }
+
+        if (options.paradigm) {
+            const t = core.PARADIGM_TEMPLATES.find((t: any) => t.name === options.paradigm);
+            if (t) customBase = (discovery as any).mergeConfig(customBase, t.config);
+        } else if (recommendedConfig.paradigm) {
+            const t = core.PARADIGM_TEMPLATES.find((t: any) => t.name === recommendedConfig.paradigm);
+            if (t) customBase = (discovery as any).mergeConfig(customBase, t.config);
+        }
+
+        recommendedConfig = customBase;
+        if (options.preset) recommendedConfig.preset = options.preset;
+        if (options.paradigm) recommendedConfig.paradigm = options.paradigm;
+    }
+
+    if (options.dryRun || options.explain) {
+        console.log(chalk.bold.blue('\n🔍 Rigour Auto-Discovery (Dry Run):'));
+        if (recommendedConfig.preset) {
+            console.log(chalk.cyan(`   Role: `) + chalk.bold(recommendedConfig.preset.toUpperCase()));
+            if (options.explain && result.matches.preset) {
+                console.log(chalk.dim(`         (Marker found: ${result.matches.preset.marker})`));
+            }
+        }
+        if (recommendedConfig.paradigm) {
+            console.log(chalk.cyan(`   Paradigm: `) + chalk.bold(recommendedConfig.paradigm.toUpperCase()));
+            if (options.explain && result.matches.paradigm) {
+                console.log(chalk.dim(`             (Marker found: ${result.matches.paradigm.marker})`));
+            }
+        }
+        console.log(chalk.yellow('\n[DRY RUN] No files will be written.'));
+        return;
+    }
 
     const configPath = path.join(cwd, 'rigour.yml');
 
@@ -14,6 +67,15 @@ export async function initCommand(cwd: string) {
         console.log(chalk.yellow('rigour.yml already exists. Skipping initialization.'));
         return;
     }
+
+    console.log(chalk.bold.blue('\n🔍 Rigour Auto-Discovery:'));
+    if (recommendedConfig.preset) {
+        console.log(chalk.cyan(`   Role: `) + chalk.bold(recommendedConfig.preset.toUpperCase()));
+    }
+    if (recommendedConfig.paradigm) {
+        console.log(chalk.cyan(`   Paradigm: `) + chalk.bold(recommendedConfig.paradigm.toUpperCase()));
+    }
+    console.log('');
 
     await fs.writeFile(configPath, yaml.stringify(recommendedConfig));
     console.log(chalk.green('✔ Created rigour.yml'));

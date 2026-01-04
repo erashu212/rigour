@@ -11,6 +11,15 @@ export const GatesSchema = z.object({
         'docs/DECISIONS.md',
         'docs/TASKS.md',
     ]),
+    ast: z.object({
+        complexity: z.number().optional().default(10),
+        max_methods: z.number().optional().default(10),
+        max_params: z.number().optional().default(5),
+    }).optional().default({}),
+    safety: z.object({
+        max_files_changed_per_cycle: z.number().optional().default(10),
+        protected_paths: z.array(z.string()).optional().default(['.github/**', 'docs/**', 'rigour.yml']),
+    }).optional().default({}),
 });
 
 export const CommandsSchema = z.object({
@@ -22,11 +31,14 @@ export const CommandsSchema = z.object({
 
 export const ConfigSchema = z.object({
     version: z.number().default(1),
+    preset: z.string().optional(),
+    paradigm: z.string().optional(),
     commands: CommandsSchema.optional().default({}),
     gates: GatesSchema.optional().default({}),
     output: z.object({
         report_path: z.string().default('rigour-report.json'),
     }).optional().default({}),
+    planned: z.array(z.string()).optional().default([]),
 });
 
 export type Gates = z.infer<typeof GatesSchema>;

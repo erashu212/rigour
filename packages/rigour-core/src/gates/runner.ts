@@ -3,6 +3,8 @@ import { Failure, Config, Report, Status } from '../types/index.js';
 import { FileGate } from './file.js';
 import { ContentGate } from './content.js';
 import { StructureGate } from './structure.js';
+import { ASTGate } from './ast.js';
+import { SafetyGate } from './safety.js';
 import { execa } from 'execa';
 import { Logger } from '../utils/logger.js';
 
@@ -26,6 +28,8 @@ export class GateRunner {
         if (this.config.gates.required_files) {
             this.gates.push(new StructureGate({ requiredFiles: this.config.gates.required_files }));
         }
+        this.gates.push(new ASTGate(this.config.gates));
+        this.gates.push(new SafetyGate(this.config.gates));
     }
 
     /**

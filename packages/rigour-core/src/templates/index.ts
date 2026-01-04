@@ -1,60 +1,132 @@
-import { Config } from '../types/index.js';
+import { Config, Commands, Gates } from '../types/index.js';
 
 export interface Template {
     name: string;
     markers: string[];
-    config: Partial<Config>;
+    config: {
+        preset?: string;
+        paradigm?: string;
+        commands?: Partial<Commands>;
+        gates?: Partial<Gates>;
+        planned?: string[];
+    };
 }
 
 export const TEMPLATES: Template[] = [
     {
-        name: 'Node.js',
-        markers: ['package.json'],
+        name: 'ui',
+        markers: [
+            'package.json', // Check deps later
+            'next.config.js',
+            'vite.config.ts',
+            'tailwind.config.js',
+            'base.css',
+            'index.html',
+        ],
         config: {
-            commands: {
-                lint: 'npm run lint',
-                test: 'npm test',
-            },
+            preset: 'ui',
             gates: {
-                max_file_lines: 500,
-                forbid_todos: true,
-                forbid_fixme: true,
-                forbid_paths: [],
+                max_file_lines: 300,
                 required_files: ['docs/SPEC.md', 'docs/ARCH.md', 'README.md'],
+            },
+            planned: [
+                'Layer Boundary: Components cannot import from DB',
+                'Prop-Drilling Detection: Max depth 5',
+            ],
+        },
+    },
+    {
+        name: 'api',
+        markers: [
+            'go.mod',
+            'requirements.txt',
+            'pyproject.toml',
+            'package.json', // Check for backend frameworks later
+            'app.py',
+            'main.go',
+            'index.js',
+        ],
+        config: {
+            preset: 'api',
+            gates: {
+                max_file_lines: 400,
+                required_files: ['docs/SPEC.md', 'docs/ARCH.md', 'README.md'],
+            },
+            planned: [
+                'Service Layer Enforcement: Controllers -> Services only',
+                'Repo Pattern: Databases access isolated to repositories/',
+            ],
+        },
+    },
+    {
+        name: 'infra',
+        markers: [
+            'Dockerfile',
+            'docker-compose.yml',
+            'main.tf',
+            'k8s/',
+            'helm/',
+            'ansible/',
+        ],
+        config: {
+            preset: 'infra',
+            gates: {
+                max_file_lines: 300,
+                required_files: ['docs/RUNBOOK.md', 'docs/ARCH.md', 'README.md'],
             },
         },
     },
     {
-        name: 'Python',
-        markers: ['pyproject.toml', 'requirements.txt', 'setup.py'],
+        name: 'data',
+        markers: [
+            'ipynb',
+            'spark',
+            'pandas',
+            'data/',
+            'dbt_project.yml',
+        ],
         config: {
-            commands: {
-                lint: 'ruff check .',
-                test: 'pytest',
-            },
+            preset: 'data',
             gates: {
                 max_file_lines: 500,
-                forbid_todos: true,
-                forbid_fixme: true,
-                forbid_paths: [],
-                required_files: ['docs/SPEC.md', 'docs/ARCH.md', 'README.md'],
+                required_files: ['docs/DATA_DICTIONARY.md', 'docs/PIPELINE.md', 'README.md'],
+            },
+            planned: [
+                'Stochastic Determinism: Seed setting enforcement',
+                'Data Leaks: Detecting PII in notebook outputs',
+            ],
+        },
+    },
+];
+
+export const PARADIGM_TEMPLATES: Template[] = [
+    {
+        name: 'oop',
+        markers: [
+            'class ',
+            'interface ',
+            'implements ',
+            'extends ',
+        ],
+        config: {
+            paradigm: 'oop',
+            gates: {
+                // Future: class-specific gates
             },
         },
     },
     {
-        name: 'Frontend (React/Vite/Next)',
-        markers: ['next.config.js', 'vite.config.ts', 'tailwind.config.js'],
+        name: 'functional',
+        markers: [
+            '=>',
+            'export const',
+            'map(',
+            'filter(',
+        ],
         config: {
-            commands: {
-                lint: 'npm run lint',
-                test: 'npm test',
-            },
+            paradigm: 'functional',
             gates: {
-                max_file_lines: 300, // Frontend files often should be smaller
-                forbid_todos: true,
-                forbid_fixme: true,
-                forbid_paths: [],
-                required_files: ['docs/SPEC.md', 'docs/ARCH.md', 'README.md'],
+                // Future: function-specific gates
             },
         },
     },
@@ -69,8 +141,18 @@ export const UNIVERSAL_CONFIG: Config = {
         forbid_fixme: true,
         forbid_paths: [],
         required_files: ['docs/SPEC.md', 'docs/ARCH.md', 'docs/DECISIONS.md', 'docs/TASKS.md'],
+        ast: {
+            complexity: 10,
+            max_methods: 10,
+            max_params: 5,
+        },
+        safety: {
+            max_files_changed_per_cycle: 10,
+            protected_paths: ['.github/**', 'docs/**', 'rigour.yml'],
+        },
     },
     output: {
         report_path: 'rigour-report.json',
     },
+    planned: [],
 };

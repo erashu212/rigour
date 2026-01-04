@@ -2,6 +2,7 @@
 import { Command } from 'commander';
 import { initCommand } from './commands/init.js';
 import { checkCommand } from './commands/check.js';
+import { explainCommand } from './commands/explain.js';
 import { runLoop } from './commands/run.js';
 
 const program = new Command();
@@ -14,15 +15,28 @@ program
 program
     .command('init')
     .description('Initialize Rigour in the current directory')
-    .action(async () => {
-        await initCommand(process.cwd());
+    .option('-p, --preset <name>', 'Project preset (ui, api, infra, data)')
+    .option('--paradigm <name>', 'Coding paradigm (oop, functional, minimal)')
+    .option('--dry-run', 'Show detected configuration without writing files')
+    .option('--explain', 'Show detection markers for roles and paradigms')
+    .action(async (options: any) => {
+        await initCommand(process.cwd(), options);
     });
 
 program
     .command('check')
     .description('Run quality gate checks')
+    .option('--ci', 'CI mode (minimal output, non-zero exit on fail)')
+    .option('--json', 'Output report in JSON format')
+    .action(async (options: any) => {
+        await checkCommand(process.cwd(), options);
+    });
+
+program
+    .command('explain')
+    .description('Explain the last quality gate report with actionable bullets')
     .action(async () => {
-        await checkCommand(process.cwd());
+        await explainCommand(process.cwd());
     });
 
 program
@@ -30,7 +44,7 @@ program
     .description('Execute an agent command in a loop until quality gates pass')
     .argument('[command...]', 'The agent command to run (e.g., cursor-agent ...)')
     .option('-i, --iterations <number>', 'Maximum number of loop iterations', '3')
-    .action(async (args, options) => {
+    .action(async (args: string[], options: any) => {
         await runLoop(process.cwd(), args, { iterations: parseInt(options.iterations) });
     });
 

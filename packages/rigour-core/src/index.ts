@@ -1,5 +1,8 @@
 export * from './types/index.js';
 export * from './gates/runner.js';
 export * from './discovery.js';
+export * from './services/fix-packet-service.js';
 export * from './templates/index.js';
+export * from './types/fix-packet.js';
+export { Gate, GateContext } from './gates/base.js';
 export * from './utils/logger.js';

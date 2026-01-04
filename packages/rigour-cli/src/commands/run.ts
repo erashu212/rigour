@@ -5,12 +5,18 @@ import yaml from 'yaml';
 import { execa } from 'execa';
 import { GateRunner, ConfigSchema } from '@rigour-labs/core';
 
+// Exit codes per spec
+const EXIT_PASS = 0;
+const EXIT_FAIL = 1;
+const EXIT_CONFIG_ERROR = 2;
+const EXIT_INTERNAL_ERROR = 3;
+
 export async function runLoop(cwd: string, agentArgs: string[], options: { iterations: number }) {
     const configPath = path.join(cwd, 'rigour.yml');
 
     if (!(await fs.pathExists(configPath))) {
         console.error(chalk.red('Error: rigour.yml not found. Run `rigour init` first.'));
-        process.exit(1);
+        process.exit(EXIT_CONFIG_ERROR);
     }
 
     try {
@@ -20,13 +26,20 @@ export async function runLoop(cwd: string, agentArgs: string[], options: { itera
         const runner = new GateRunner(config);
 
         let iteration = 0;
-        const maxIterations = options.iterations;
+        const maxIterations = isNaN(options.iterations) || options.iterations < 1 ? 3 : options.iterations;
 
         while (iteration < maxIterations) {
             iteration++;
             console.log(chalk.bold.blue(`\n══════════════════════════════════════════════════════════════════`));
             console.log(chalk.bold.blue(`  RIGOUR LOOP: Iteration ${iteration}/${maxIterations}`));
             console.log(chalk.bold.blue(`══════════════════════════════════════════════════════════════════`));
+
+            // Snapshot changed files before agent runs
+            let beforeFiles: string[] = [];
+            try {
+                const { stdout } = await execa('git', ['status', '--porcelain'], { cwd });
+                beforeFiles = stdout.split('\n').filter(l => l.trim()).map(l => l.slice(3).trim());
+            } catch (e) { }
 
             // 1. Run the agent command
             if (agentArgs.length > 0) {
@@ -37,6 +50,22 @@ export async function runLoop(cwd: string, agentArgs: string[], options: { itera
                 } catch (error: any) {
                     console.warn(chalk.yellow(`\n⚠️  Agent command finished with non-zero exit code. Rigour will now verify state...`));
                 }
+            }
+
+            // Snapshot changed files after agent runs
+            let afterFiles: string[] = [];
+            try {
+                const { stdout } = await execa('git', ['status', '--porcelain'], { cwd });
+                afterFiles = stdout.split('\n').filter(l => l.trim()).map(l => l.slice(3).trim());
+            } catch (e) { }
+
+            const changedThisCycle = afterFiles.filter(f => !beforeFiles.includes(f));
+            const maxFiles = config.gates.safety?.max_files_changed_per_cycle || 10;
+
+            if (changedThisCycle.length > maxFiles) {
+                console.log(chalk.red.bold(`\n🛑 SAFETY RAIL ABORT: Agent changed ${changedThisCycle.length} files (max: ${maxFiles}).`));
+                console.log(chalk.red(`   This looks like explosive behavior. Check your agent's instructions.`));
+                process.exit(EXIT_FAIL);
             }
 
             // 2. Run Rigour Check
@@ -66,7 +95,7 @@ export async function runLoop(cwd: string, agentArgs: string[], options: { itera
             if (iteration === maxIterations) {
                 console.log(chalk.red.bold(`\n❌ CRITICAL: Reached maximum iterations (${maxIterations}).`));
                 console.log(chalk.red(`   Quality gates remain unfulfilled. Refactor manually or check agent logs.`));
-                process.exit(1);
+                process.exit(EXIT_FAIL);
             }
         }
     } catch (error: any) {
@@ -74,6 +103,6 @@ export async function runLoop(cwd: string, agentArgs: string[], options: { itera
         if (error.issues) {
             console.error(chalk.dim(JSON.stringify(error.issues, null, 2)));
         }
-        process.exit(1);
+        process.exit(EXIT_INTERNAL_ERROR);
     }
 }

@@ -1,4 +1,4 @@
----
+# 🛡️ Rigour Labs
 
 ## 🚦 Status & Trust
 > [!NOTE]

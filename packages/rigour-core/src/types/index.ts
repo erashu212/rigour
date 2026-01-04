@@ -25,7 +25,7 @@ export const ConfigSchema = z.object({
     commands: CommandsSchema.optional().default({}),
     gates: GatesSchema.optional().default({}),
     output: z.object({
-        report_path: z.string().default('vibeguard-report.json'),
+        report_path: z.string().default('rigour-report.json'),
     }).optional().default({}),
 });
 

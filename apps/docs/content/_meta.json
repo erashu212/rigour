@@ -1,0 +1,16 @@
+{
+    "index": "🛡️ Introduction",
+    "getting-started": "🚀 Getting Started",
+    "--- specs": {
+        "type": "separator",
+        "title": "Engineering Foundation"
+    },
+    "specs": "Technical Reference",
+    "--- extra": {
+        "type": "separator",
+        "title": "Roadmap & Vision"
+    },
+    "cloud-plan": "Cloud Strategy",
+    "premium-vision": "Premium Model",
+    "migration": "Migration Checklist"
+}

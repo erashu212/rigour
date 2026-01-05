@@ -1,7 +1,8 @@
-import { Failure } from '../types/index.js';
+import { GoldenRecord } from '../services/context-engine.js';
 
 export interface GateContext {
     cwd: string;
+    record?: GoldenRecord;
 }
 
 export abstract class Gate {

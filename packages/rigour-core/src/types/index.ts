@@ -35,6 +35,12 @@ export const GatesSchema = z.object({
         max_files_changed_per_cycle: z.number().optional().default(10),
         protected_paths: z.array(z.string()).optional().default(['.github/**', 'docs/**', 'rigour.yml']),
     }).optional().default({}),
+    context: z.object({
+        enabled: z.boolean().optional().default(true),
+        sensitivity: z.number().min(0).max(1).optional().default(0.8), // 0.8 correlation threshold
+        mining_depth: z.number().optional().default(100), // Number of files to sample
+        ignored_patterns: z.array(z.string()).optional().default([]),
+    }).optional().default({}),
 });
 
 export const CommandsSchema = z.object({

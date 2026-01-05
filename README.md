@@ -52,6 +52,7 @@ The `rigour run` command loops until your agent achieves PASS or hits max iterat
 | **Complexity** | Cyclomatic complexity limits (AST-based) |
 | **Required Docs** | SPEC.md, ARCH.md, README must exist |
 | **Safety Rails** | Protected paths, max files changed |
+| **Context Alignment** | Prevents drift by anchoring on project patterns |
 
 ---
 

@@ -7,6 +7,8 @@ import { ASTGate } from './ast.js';
 import { SafetyGate } from './safety.js';
 import { DependencyGate } from './dependency.js';
 import { CoverageGate } from './coverage.js';
+import { ContextGate } from './context.js'; // [NEW]
+import { ContextEngine } from '../services/context-engine.js'; // [NEW]
 import { execa } from 'execa';
 import { Logger } from '../utils/logger.js';
 
@@ -34,6 +36,10 @@ export class GateRunner {
         this.gates.push(new DependencyGate(this.config));
         this.gates.push(new SafetyGate(this.config.gates));
         this.gates.push(new CoverageGate(this.config.gates));
+
+        if (this.config.gates.context?.enabled) {
+            this.gates.push(new ContextGate(this.config.gates));
+        }
     }
 
     /**
@@ -48,10 +54,17 @@ export class GateRunner {
         const failures: Failure[] = [];
         const summary: Record<string, Status> = {};
 
+        // 0. Run Context Discovery
+        let record;
+        if (this.config.gates.context?.enabled) {
+            const engine = new ContextEngine(this.config);
+            record = await engine.discover(cwd);
+        }
+
         // 1. Run internal gates
         for (const gate of this.gates) {
             try {
-                const gateFailures = await gate.run({ cwd });
+                const gateFailures = await gate.run({ cwd, record });
                 if (gateFailures.length > 0) {
                     failures.push(...gateFailures);
                     summary[gate.id] = 'FAIL';

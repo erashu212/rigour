@@ -13,10 +13,10 @@ export abstract class Gate {
 
     abstract run(context: GateContext): Promise<Failure[]>;
 
-    protected createFailure(details: string, files?: string[], hint?: string): Failure {
+    protected createFailure(details: string, files?: string[], hint?: string, title?: string): Failure {
         return {
             id: this.id,
-            title: this.title,
+            title: title || this.title,
             details,
             files,
             hint,

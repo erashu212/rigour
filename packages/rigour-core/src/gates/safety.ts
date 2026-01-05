@@ -19,15 +19,22 @@ export class SafetyGate extends Gate {
             // This is a "Safety Rail" - if an agent touched these, we fail.
             const { stdout } = await execa('git', ['status', '--porcelain'], { cwd: context.cwd });
             const modifiedFiles = stdout.split('\n')
-                .filter(line => line.trim().length > 0)
-                .map(line => line.slice(3));
+                .filter(line => {
+                    const status = line.slice(0, 2);
+                    // M: Modified, A: Added (staged), D: Deleted, R: Renamed
+                    // We ignore ?? (Untracked) to allow rigour init and new doc creation
+                    return /M|A|D|R/.test(status);
+                })
+                .map(line => line.slice(3).trim());
 
             for (const file of modifiedFiles) {
                 if (this.isProtected(file, protectedPaths)) {
+                    const message = `Protected file '${file}' was modified.`;
                     failures.push(this.createFailure(
-                        `Protected file '${file}' was modified.`,
+                        message,
                         [file],
-                        `Agents are forbidden from modifying files in ${protectedPaths.join(', ')}.`
+                        `Agents are forbidden from modifying files in ${protectedPaths.join(', ')}.`,
+                        message
                     ));
                 }
             }

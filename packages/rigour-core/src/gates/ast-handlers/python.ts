@@ -15,8 +15,21 @@ export class PythonHandler extends ASTHandler {
         const failures: Failure[] = [];
         const scriptPath = path.join(__dirname, 'python_parser.py');
 
+        // Dynamic command detection for cross-platform support (Mac/Linux usually python3, Windows usually python)
+        let pythonCmd = 'python3';
         try {
-            const { stdout } = await execa('python3', [scriptPath], {
+            await execa('python3', ['--version']);
+        } catch (e) {
+            try {
+                await execa('python', ['--version']);
+                pythonCmd = 'python';
+            } catch (e2) {
+                // Both missing - handled by main catch
+            }
+        }
+
+        try {
+            const { stdout } = await execa(pythonCmd, [scriptPath], {
                 input: context.content,
                 cwd: context.cwd
             });

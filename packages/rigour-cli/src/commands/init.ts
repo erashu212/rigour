@@ -124,8 +124,10 @@ npx @rigour-labs/cli run -- <agent-command>
 `;
 
     // 1. Create Universal Instructions
-    await fs.writeFile(instructionsPath, ruleContent);
-    console.log(chalk.green('✔ Initialized Universal Agent Handshake (docs/AGENT_INSTRUCTIONS.md)'));
+    if (!(await fs.pathExists(instructionsPath))) {
+        await fs.writeFile(instructionsPath, ruleContent);
+        console.log(chalk.green('✔ Initialized Universal Agent Handshake (docs/AGENT_INSTRUCTIONS.md)'));
+    }
 
     // 2. Create Cursor Specific Rules (.mdc)
     const cursorRulesDir = path.join(cwd, '.cursor', 'rules');
@@ -138,8 +140,30 @@ globs: **/*
 
 ${ruleContent}`;
 
-    await fs.writeFile(mdcPath, mdcContent);
-    console.log(chalk.green('✔ Initialized Cursor Handshake (.cursor/rules/rigour.mdc)'));
+    if (!(await fs.pathExists(mdcPath))) {
+        await fs.writeFile(mdcPath, mdcContent);
+        console.log(chalk.green('✔ Initialized Cursor Handshake (.cursor/rules/rigour.mdc)'));
+    }
+
+    // 3. Update .gitignore
+    const gitignorePath = path.join(cwd, '.gitignore');
+    const ignorePatterns = ['rigour-report.json', 'rigour-fix-packet.json', '.rigour/'];
+    try {
+        let content = '';
+        if (await fs.pathExists(gitignorePath)) {
+            content = await fs.readFile(gitignorePath, 'utf-8');
+        }
+
+        const toAdd = ignorePatterns.filter(p => !content.includes(p));
+        if (toAdd.length > 0) {
+            const separator = content.endsWith('\n') ? '' : '\n';
+            const newContent = `${content}${separator}\n# Rigour Artifacts\n${toAdd.join('\n')}\n`;
+            await fs.writeFile(gitignorePath, newContent);
+            console.log(chalk.green('✔ Updated .gitignore'));
+        }
+    } catch (e) {
+        // Failing to update .gitignore isn't fatal
+    }
 
     console.log(chalk.blue('\nRigour is ready. Run `npx @rigour-labs/cli check` to verify your project.'));
 }

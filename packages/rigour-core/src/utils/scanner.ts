@@ -21,7 +21,8 @@ export class FileScanner {
 
     static async findFiles(options: ScannerOptions): Promise<string[]> {
         const patterns = (options.patterns || this.DEFAULT_PATTERNS).map(p => p.replace(/\\/g, '/'));
-        const ignore = (options.ignore || this.DEFAULT_IGNORE).map(p => p.replace(/\\/g, '/'));
+        const userIgnore = options.ignore || [];
+        const ignore = [...new Set([...this.DEFAULT_IGNORE, ...userIgnore])].map(p => p.replace(/\\/g, '/'));
         const normalizedCwd = options.cwd.replace(/\\/g, '/');
 
         return globby(patterns, {

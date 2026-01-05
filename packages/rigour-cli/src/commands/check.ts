@@ -3,6 +3,7 @@ import path from 'path';
 import chalk from 'chalk';
 import yaml from 'yaml';
 import { GateRunner, ConfigSchema, Failure } from '@rigour-labs/core';
+import inquirer from 'inquirer';
 
 // Exit codes per spec
 const EXIT_PASS = 0;
@@ -72,6 +73,11 @@ export async function checkCommand(cwd: string, files: string[] = [], options: C
             process.exit(report.status === 'PASS' ? EXIT_PASS : EXIT_FAIL);
         }
 
+        if (options.interactive && report.status === 'FAIL') {
+            await interactiveMode(report, config);
+            process.exit(EXIT_FAIL);
+        }
+
         // Normal human-readable output
         if (report.status === 'PASS') {
             console.log(chalk.green.bold('✔ PASS - All quality gates satisfied.'));
@@ -99,11 +105,75 @@ export async function checkCommand(cwd: string, files: string[] = [], options: C
         process.exit(report.status === 'PASS' ? EXIT_PASS : EXIT_FAIL);
 
     } catch (error: any) {
+        if (error.name === 'ZodError') {
+            if (options.json) {
+                console.log(JSON.stringify({ error: 'CONFIG_ERROR', details: error.issues }));
+            } else {
+                console.error(chalk.red('\nInvalid rigour.yml configuration:'));
+                error.issues.forEach((issue: any) => {
+                    console.error(chalk.red(`  • ${issue.path.join('.')}: ${issue.message}`));
+                });
+            }
+            process.exit(EXIT_CONFIG_ERROR);
+        }
+
         if (options.json) {
             console.log(JSON.stringify({ error: 'INTERNAL_ERROR', message: error.message }));
         } else if (!options.ci) {
             console.error(chalk.red(`Internal error: ${error.message}`));
         }
         process.exit(EXIT_INTERNAL_ERROR);
+    }
+}
+
+async function interactiveMode(report: any, config: any) {
+    console.clear();
+    console.log(chalk.bold.blue('══ Rigour Interactive Review ══\n'));
+    console.log(chalk.yellow(`${report.failures.length} violations found.\n`));
+
+    const choices = report.failures.map((f: Failure, i: number) => ({
+        name: `[${f.id}] ${f.title}`,
+        value: i
+    }));
+
+    choices.push(new (inquirer as any).Separator());
+    choices.push({ name: 'Exit', value: -1 });
+
+    let exit = false;
+    while (!exit) {
+        const { index } = await inquirer.prompt([
+            {
+                type: 'list',
+                name: 'index',
+                message: 'Select a violation to view details:',
+                choices,
+                pageSize: 15
+            }
+        ]);
+
+        if (index === -1) {
+            exit = true;
+            continue;
+        }
+
+        const failure = report.failures[index];
+        console.clear();
+        console.log(chalk.bold.red(`\nViolation: ${failure.title}`));
+        console.log(chalk.dim(`ID: ${failure.id}`));
+        console.log(`\n${chalk.bold('Details:')}\n${failure.details}`);
+
+        if (failure.files && failure.files.length > 0) {
+            console.log(`\n${chalk.bold('Impacted Files:')}`);
+            failure.files.forEach((f: string) => console.log(chalk.dim(`  - ${f}`)));
+        }
+
+        if (failure.hint) {
+            console.log(`\n${chalk.bold.cyan('Hint:')} ${failure.hint}`);
+        }
+
+        console.log(chalk.dim('\n' + '─'.repeat(40)));
+        await inquirer.prompt([{ type: 'input', name: 'continue', message: 'Press Enter to return to list...' }]);
+        console.clear();
+        console.log(chalk.bold.blue('══ Rigour Interactive Review ══\n'));
     }
 }

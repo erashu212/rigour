@@ -78,15 +78,20 @@ export class DiscoveryService {
     }
 
     private async findSourceFiles(cwd: string): Promise<string[]> {
-        // Find a few files to sample
         const extensions = ['.ts', '.js', '.py', '.go', '.java', '.tf', 'package.json'];
         const samples: string[] = [];
+        const commonDirs = ['.', 'src', 'app', 'lib', 'api', 'pkg'];
 
-        const files = await fs.readdir(cwd);
-        for (const file of files) {
-            if (extensions.some(ext => file.endsWith(ext))) {
-                samples.push(path.join(cwd, file));
-                if (samples.length >= 5) break;
+        for (const dir of commonDirs) {
+            const fullDir = path.join(cwd, dir);
+            if (!(await fs.pathExists(fullDir))) continue;
+
+            const files = await fs.readdir(fullDir);
+            for (const file of files) {
+                if (extensions.some(ext => file.endsWith(ext))) {
+                    samples.push(path.join(fullDir, file));
+                    if (samples.length >= 5) return samples;
+                }
             }
         }
         return samples;

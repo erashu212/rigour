@@ -43,12 +43,20 @@ export async function runLoop(cwd: string, agentArgs: string[], options: { itera
                 // For simplicity, we assume the agent can read the JSON file we generate
             }
 
+            const getTrackedChanges = async () => {
+                try {
+                    const { stdout } = await execa('git', ['status', '--porcelain'], { cwd });
+                    return stdout.split('\n')
+                        .filter(l => l.trim())
+                        .filter(line => /M|A|D|R/.test(line.slice(0, 2)))
+                        .map(l => l.slice(3).trim());
+                } catch (e) {
+                    return [];
+                }
+            };
+
             // Snapshot changed files before agent runs
-            let beforeFiles: string[] = [];
-            try {
-                const { stdout } = await execa('git', ['status', '--porcelain'], { cwd });
-                beforeFiles = stdout.split('\n').filter(l => l.trim()).map(l => l.slice(3).trim());
-            } catch (e) { }
+            const beforeFiles = await getTrackedChanges();
 
             // 2. Run the agent command
             if (currentArgs.length > 0) {
@@ -62,11 +70,7 @@ export async function runLoop(cwd: string, agentArgs: string[], options: { itera
             }
 
             // Snapshot changed files after agent runs
-            let afterFiles: string[] = [];
-            try {
-                const { stdout } = await execa('git', ['status', '--porcelain'], { cwd });
-                afterFiles = stdout.split('\n').filter(l => l.trim()).map(l => l.slice(3).trim());
-            } catch (e) { }
+            const afterFiles = await getTrackedChanges();
 
             const changedThisCycle = afterFiles.filter(f => !beforeFiles.includes(f));
             const maxFiles = config.gates.safety?.max_files_changed_per_cycle || 10;

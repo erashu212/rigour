@@ -60,7 +60,11 @@ export class CoverageGate extends Gate {
                 currentFile = line.substring(3);
                 results[currentFile] = { found: 0, hit: 0, isComplex: false };
             } else if (line.startsWith('LF:')) {
-                results[currentFile].found = parseInt(line.substring(3));
+                const found = parseInt(line.substring(3));
+                results[currentFile].found = found;
+                // SME Logic: If a file has > 100 logical lines, it's considered "Complex"
+                // and triggers the higher (80%) coverage requirement.
+                if (found > 100) results[currentFile].isComplex = true;
             } else if (line.startsWith('LH:')) {
                 results[currentFile].hit = parseInt(line.substring(3));
             }

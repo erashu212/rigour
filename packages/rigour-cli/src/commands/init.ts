@@ -166,4 +166,7 @@ ${ruleContent}`;
     }
 
     console.log(chalk.blue('\nRigour is ready. Run `npx @rigour-labs/cli check` to verify your project.'));
+    console.log(chalk.dim('\n💡 Tip: Planning to use a framework like Next.js?'));
+    console.log(chalk.dim('   Run its scaffolding tool (e.g., npx create-next-app) BEFORE rigour init,'));
+    console.log(chalk.dim('   or move rigour.yml and docs/ aside temporarily to satisfy empty-directory checks.'));
 }

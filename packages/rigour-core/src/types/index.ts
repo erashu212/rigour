@@ -47,6 +47,12 @@ export const GatesSchema = z.object({
         tools: z.record(z.string()).optional().default({}), // Explicit overrides
         required_env: z.array(z.string()).optional().default([]),
     }).optional().default({}),
+    retry_loop_breaker: z.object({
+        enabled: z.boolean().optional().default(true),
+        max_retries: z.number().optional().default(3), // Fail after 3 consecutive failures in same category
+        auto_classify: z.boolean().optional().default(true), // Auto-detect failure category from error message
+        doc_sources: z.record(z.string()).optional().default({}), // Custom doc URLs per category
+    }).optional().default({}),
 });
 
 export const CommandsSchema = z.object({

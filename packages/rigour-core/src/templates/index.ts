@@ -202,6 +202,12 @@ export const UNIVERSAL_CONFIG: Config = {
             tools: {},
             required_env: [],
         },
+        retry_loop_breaker: {
+            enabled: true,
+            max_retries: 3,
+            auto_classify: true,
+            doc_sources: {},
+        },
     },
     output: {
         report_path: 'rigour-report.json',

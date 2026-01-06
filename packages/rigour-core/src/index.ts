@@ -5,4 +5,5 @@ export * from './services/fix-packet-service.js';
 export * from './templates/index.js';
 export * from './types/fix-packet.js';
 export { Gate, GateContext } from './gates/base.js';
+export { RetryLoopBreakerGate } from './gates/retry-loop-breaker.js';
 export * from './utils/logger.js';

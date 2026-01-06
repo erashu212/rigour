@@ -9,7 +9,8 @@ import { DependencyGate } from './dependency.js';
 import { CoverageGate } from './coverage.js';
 import { ContextGate } from './context.js';
 import { ContextEngine } from '../services/context-engine.js';
-import { EnvironmentGate } from './environment.js'; // [NEW]
+import { EnvironmentGate } from './environment.js';
+import { RetryLoopBreakerGate } from './retry-loop-breaker.js';
 import { execa } from 'execa';
 import { Logger } from '../utils/logger.js';
 
@@ -21,6 +22,11 @@ export class GateRunner {
     }
 
     private initializeGates() {
+        // Retry Loop Breaker Gate - HIGHEST PRIORITY (runs first)
+        if (this.config.gates.retry_loop_breaker?.enabled !== false) {
+            this.gates.push(new RetryLoopBreakerGate(this.config.gates.retry_loop_breaker));
+        }
+
         if (this.config.gates.max_file_lines) {
             this.gates.push(new FileGate({ maxLines: this.config.gates.max_file_lines }));
         }

@@ -3,6 +3,7 @@ import path from 'path';
 import chalk from 'chalk';
 import yaml from 'yaml';
 import { DiscoveryService } from '@rigour-labs/core';
+import { CODE_QUALITY_RULES, DEBUGGING_RULES, COLLABORATION_RULES } from './constants.js';
 
 export interface InitOptions {
     preset?: string;
@@ -107,12 +108,6 @@ Before claiming "Done" for any task, you MUST follow this loop:
 3.  **Refactor**: Apply **SOLID** and **DRY** principles to resolve the violations according to constraints.
 4.  **Repeat**: Continue until \`npx @rigour-labs/cli check\` returns **PASS**.
 
-## 🧩 Engineering Standards
-- **Single Responsibility**: Keep files small and focused (max 500 lines).
-- **DRY (Don't Repeat Yourself)**: Extract common logic into utilities.
-- **Done is Done**: No \`TODO\` or \`FIXME\` comments allowed in the final state.
-- **Memory Preservation**: Always update docs/SPEC.md, docs/ARCH.md, docs/DECISIONS.md.
-
 ## 🛠️ Commands
 \`\`\`bash
 # Verify current state
@@ -121,6 +116,12 @@ npx @rigour-labs/cli check
 # Self-healing agent loop
 npx @rigour-labs/cli run -- <agent-command>
 \`\`\`
+
+${CODE_QUALITY_RULES}
+
+${DEBUGGING_RULES}
+
+${COLLABORATION_RULES}
 `;
 
     // 1. Create Universal Instructions

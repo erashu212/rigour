@@ -8,8 +8,37 @@ import { CODE_QUALITY_RULES, DEBUGGING_RULES, COLLABORATION_RULES } from './cons
 export interface InitOptions {
     preset?: string;
     paradigm?: string;
+    ide?: 'cursor' | 'vscode' | 'all';
     dryRun?: boolean;
     explain?: boolean;
+}
+
+type DetectedIDE = 'cursor' | 'vscode' | 'unknown';
+
+function detectIDE(cwd: string): DetectedIDE {
+    // Check for Cursor-specific markers
+    if (fs.existsSync(path.join(cwd, '.cursor'))) {
+        return 'cursor';
+    }
+    
+    // Check for VS Code markers
+    if (fs.existsSync(path.join(cwd, '.vscode'))) {
+        return 'vscode';
+    }
+    
+    // Check environment variables that IDEs set
+    const termProgram = process.env.TERM_PROGRAM || '';
+    const terminal = process.env.TERMINAL_EMULATOR || '';
+    
+    if (termProgram.toLowerCase().includes('cursor') || terminal.toLowerCase().includes('cursor')) {
+        return 'cursor';
+    }
+    
+    if (termProgram.toLowerCase().includes('vscode') || process.env.VSCODE_INJECTION) {
+        return 'vscode';
+    }
+    
+    return 'unknown';
 }
 
 export async function initCommand(cwd: string, options: InitOptions = {}) {
@@ -136,20 +165,34 @@ ${COLLABORATION_RULES}
         console.log(chalk.green('✔ Initialized Universal Agent Handshake (docs/AGENT_INSTRUCTIONS.md)'));
     }
 
-    // 2. Create Cursor Specific Rules (.mdc)
-    const cursorRulesDir = path.join(cwd, '.cursor', 'rules');
-    await fs.ensureDir(cursorRulesDir);
-    const mdcPath = path.join(cursorRulesDir, 'rigour.mdc');
-    const mdcContent = `---
+    // 2. Create IDE-Specific Rules based on detection or user preference
+    const detectedIDE = detectIDE(cwd);
+    const targetIDE = options.ide || (detectedIDE !== 'unknown' ? detectedIDE : 'all');
+    
+    if (detectedIDE !== 'unknown' && !options.ide) {
+        console.log(chalk.dim(`   (Auto-detected IDE: ${detectedIDE})`));
+    }
+    
+    if (targetIDE === 'cursor' || targetIDE === 'all') {
+        const cursorRulesDir = path.join(cwd, '.cursor', 'rules');
+        await fs.ensureDir(cursorRulesDir);
+        const mdcPath = path.join(cursorRulesDir, 'rigour.mdc');
+        const mdcContent = `---
 description: Enforcement of Rigour quality gates and best practices.
 globs: **/*
 ---
 
 ${ruleContent}`;
 
-    if (!(await fs.pathExists(mdcPath))) {
-        await fs.writeFile(mdcPath, mdcContent);
-        console.log(chalk.green('✔ Initialized Cursor Handshake (.cursor/rules/rigour.mdc)'));
+        if (!(await fs.pathExists(mdcPath))) {
+            await fs.writeFile(mdcPath, mdcContent);
+            console.log(chalk.green('✔ Initialized Cursor Handshake (.cursor/rules/rigour.mdc)'));
+        }
+    }
+    
+    if (targetIDE === 'vscode') {
+        // VS Code users use the universal AGENT_INSTRUCTIONS.md (already created above)
+        console.log(chalk.green('✔ VS Code mode - using Universal Handshake (docs/AGENT_INSTRUCTIONS.md)'));
     }
 
     // 3. Update .gitignore

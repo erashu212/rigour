@@ -28,12 +28,15 @@ program
     .description('Initialize Rigour in the current directory')
     .option('-p, --preset <name>', 'Project preset (ui, api, infra, data)')
     .option('--paradigm <name>', 'Coding paradigm (oop, functional, minimal)')
+    .option('--ide <name>', 'Target IDE (cursor, vscode, all). Auto-detects if not specified.')
     .option('--dry-run', 'Show detected configuration without writing files')
     .option('--explain', 'Show detection markers for roles and paradigms')
     .addHelpText('after', `
 Examples:
   $ rigour init                        # Auto-discover role & paradigm
   $ rigour init --preset api --explain # Force API role and show why
+  $ rigour init --ide vscode           # Only create VS Code compatible files
+  $ rigour init --ide all              # Create files for all IDEs
     `)
     .action(async (options: any) => {
         await initCommand(process.cwd(), options);

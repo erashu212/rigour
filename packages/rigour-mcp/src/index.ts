@@ -31,6 +31,31 @@ async function loadConfig(cwd: string) {
     return ConfigSchema.parse(yaml.parse(configContent));
 }
 
+// Memory persistence for context retention
+interface MemoryStore {
+    memories: Record<string, { value: string; timestamp: string }>;
+}
+
+async function getMemoryPath(cwd: string): Promise<string> {
+    const rigourDir = path.join(cwd, ".rigour");
+    await fs.ensureDir(rigourDir);
+    return path.join(rigourDir, "memory.json");
+}
+
+async function loadMemory(cwd: string): Promise<MemoryStore> {
+    const memPath = await getMemoryPath(cwd);
+    if (await fs.pathExists(memPath)) {
+        const content = await fs.readFile(memPath, "utf-8");
+        return JSON.parse(content);
+    }
+    return { memories: {} };
+}
+
+async function saveMemory(cwd: string, store: MemoryStore): Promise<void> {
+    const memPath = await getMemoryPath(cwd);
+    await fs.writeFile(memPath, JSON.stringify(store, null, 2));
+}
+
 server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
         tools: [
@@ -116,6 +141,64 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         },
                     },
                     required: ["cwd"],
+                },
+            },
+            {
+                name: "rigour_remember",
+                description: "Store a persistent instruction or context that the AI should remember across sessions. Use this to persist user preferences, project conventions, or critical instructions.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        cwd: {
+                            type: "string",
+                            description: "Absolute path to the project root.",
+                        },
+                        key: {
+                            type: "string",
+                            description: "A unique key for this memory (e.g., 'user_preferences', 'coding_style').",
+                        },
+                        value: {
+                            type: "string",
+                            description: "The instruction or context to remember.",
+                        },
+                    },
+                    required: ["cwd", "key", "value"],
+                },
+            },
+            {
+                name: "rigour_recall",
+                description: "Retrieve stored instructions or context. Call this at the start of each session to restore memory. Returns all stored memories if no key specified.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        cwd: {
+                            type: "string",
+                            description: "Absolute path to the project root.",
+                        },
+                        key: {
+                            type: "string",
+                            description: "Optional. Key of specific memory to retrieve.",
+                        },
+                    },
+                    required: ["cwd"],
+                },
+            },
+            {
+                name: "rigour_forget",
+                description: "Remove a stored memory by key.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        cwd: {
+                            type: "string",
+                            description: "Absolute path to the project root.",
+                        },
+                        key: {
+                            type: "string",
+                            description: "Key of the memory to remove.",
+                        },
+                    },
+                    required: ["cwd", "key"],
                 },
             },
         ],
@@ -246,6 +329,105 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         },
                     ],
                 };
+
+            case "rigour_remember": {
+                const { key, value } = args as any;
+                const store = await loadMemory(cwd);
+                store.memories[key] = {
+                    value,
+                    timestamp: new Date().toISOString(),
+                };
+                await saveMemory(cwd, store);
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: `MEMORY STORED: "${key}" has been saved. This instruction will persist across sessions.\n\nStored value: ${value}`,
+                        },
+                    ],
+                };
+            }
+
+            case "rigour_recall": {
+                const { key } = args as any;
+                const store = await loadMemory(cwd);
+
+                if (key) {
+                    const memory = store.memories[key];
+                    if (!memory) {
+                        return {
+                            content: [
+                                {
+                                    type: "text",
+                                    text: `NO MEMORY FOUND for key "${key}". Use rigour_remember to store instructions.`,
+                                },
+                            ],
+                        };
+                    }
+                    return {
+                        content: [
+                            {
+                                type: "text",
+                                text: `RECALLED MEMORY [${key}]:\n${memory.value}\n\n(Stored: ${memory.timestamp})`,
+                            },
+                        ],
+                    };
+                }
+
+                const keys = Object.keys(store.memories);
+                if (keys.length === 0) {
+                    return {
+                        content: [
+                            {
+                                type: "text",
+                                text: "NO MEMORIES STORED. Use rigour_remember to persist important instructions.",
+                            },
+                        ],
+                    };
+                }
+
+                const allMemories = keys.map(k => {
+                    const mem = store.memories[k];
+                    return `## ${k}\n${mem.value}\n(Stored: ${mem.timestamp})`;
+                }).join("\n\n---\n\n");
+
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: `RECALLED ALL MEMORIES (${keys.length} items):\n\n${allMemories}\n\n---\nIMPORTANT: Follow these stored instructions throughout this session.`,
+                        },
+                    ],
+                };
+            }
+
+            case "rigour_forget": {
+                const { key } = args as any;
+                const store = await loadMemory(cwd);
+
+                if (!store.memories[key]) {
+                    return {
+                        content: [
+                            {
+                                type: "text",
+                                text: `NO MEMORY FOUND for key "${key}". Nothing to forget.`,
+                            },
+                        ],
+                    };
+                }
+
+                delete store.memories[key];
+                await saveMemory(cwd, store);
+
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: `MEMORY DELETED: "${key}" has been removed.`,
+                        },
+                    ],
+                };
+            }
 
             default:
                 throw new Error(`Unknown tool: ${name}`);

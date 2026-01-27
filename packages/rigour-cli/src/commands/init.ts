@@ -8,14 +8,34 @@ import { CODE_QUALITY_RULES, DEBUGGING_RULES, COLLABORATION_RULES, AGNOSTIC_AI_I
 export interface InitOptions {
     preset?: string;
     paradigm?: string;
-    ide?: 'cursor' | 'vscode' | 'cline' | 'all';
+    ide?: 'cursor' | 'vscode' | 'cline' | 'claude' | 'gemini' | 'codex' | 'windsurf' | 'all';
     dryRun?: boolean;
     explain?: boolean;
 }
 
-type DetectedIDE = 'cursor' | 'vscode' | 'cline' | 'unknown';
+type DetectedIDE = 'cursor' | 'vscode' | 'cline' | 'claude' | 'gemini' | 'codex' | 'windsurf' | 'unknown';
 
 function detectIDE(cwd: string): DetectedIDE {
+    // Check for Claude Code markers
+    if (fs.existsSync(path.join(cwd, 'CLAUDE.md')) || fs.existsSync(path.join(cwd, '.claude'))) {
+        return 'claude';
+    }
+
+    // Check for Gemini Code Assist markers
+    if (fs.existsSync(path.join(cwd, '.gemini'))) {
+        return 'gemini';
+    }
+
+    // Check for Codex/Aider AGENTS.md (universal standard)
+    if (fs.existsSync(path.join(cwd, 'AGENTS.md'))) {
+        return 'codex';
+    }
+
+    // Check for Windsurf markers
+    if (fs.existsSync(path.join(cwd, '.windsurfrules')) || fs.existsSync(path.join(cwd, '.windsurf'))) {
+        return 'windsurf';
+    }
+
     // Check for Cline-specific markers
     if (fs.existsSync(path.join(cwd, '.clinerules'))) {
         return 'cline';
@@ -46,6 +66,16 @@ function detectIDE(cwd: string): DetectedIDE {
 
     if (termProgram.toLowerCase().includes('vscode') || process.env.VSCODE_INJECTION) {
         return 'vscode';
+    }
+
+    // Check for Claude Code environment
+    if (process.env.CLAUDE_CODE || process.env.ANTHROPIC_API_KEY) {
+        return 'claude';
+    }
+
+    // Check for Gemini environment
+    if (process.env.GEMINI_API_KEY || process.env.GOOGLE_CLOUD_PROJECT) {
+        return 'gemini';
     }
 
     return 'unknown';
@@ -213,6 +243,99 @@ ${ruleContent}`;
         if (!(await fs.pathExists(clineRulesPath))) {
             await fs.writeFile(clineRulesPath, ruleContent);
             console.log(chalk.green('✔ Initialized Cline Handshake (.clinerules)'));
+        }
+    }
+
+    // Claude Code (CLAUDE.md)
+    if (targetIDE === 'claude' || targetIDE === 'all') {
+        const claudePath = path.join(cwd, 'CLAUDE.md');
+        const claudeContent = `# CLAUDE.md - Project Instructions for Claude Code
+
+This file provides Claude Code with context about this project.
+
+## Project Overview
+
+This project uses Rigour for quality gates. Always run \`npx @rigour-labs/cli check\` before marking tasks complete.
+
+## Commands
+
+\`\`\`bash
+# Verify quality gates
+npx @rigour-labs/cli check
+
+# Get fix packet for failures
+npx @rigour-labs/cli explain
+
+# Self-healing agent loop
+npx @rigour-labs/cli run -- claude "<task>"
+\`\`\`
+
+${ruleContent}`;
+
+        if (!(await fs.pathExists(claudePath))) {
+            await fs.writeFile(claudePath, claudeContent);
+            console.log(chalk.green('✔ Initialized Claude Code Handshake (CLAUDE.md)'));
+        }
+    }
+
+    // Gemini Code Assist (.gemini/styleguide.md)
+    if (targetIDE === 'gemini' || targetIDE === 'all') {
+        const geminiDir = path.join(cwd, '.gemini');
+        await fs.ensureDir(geminiDir);
+        const geminiStylePath = path.join(geminiDir, 'styleguide.md');
+        const geminiContent = `# Gemini Code Assist Style Guide
+
+This project uses Rigour for quality gates.
+
+## Required Before Completion
+
+Always run \`npx @rigour-labs/cli check\` before marking any task complete.
+
+${ruleContent}`;
+
+        if (!(await fs.pathExists(geminiStylePath))) {
+            await fs.writeFile(geminiStylePath, geminiContent);
+            console.log(chalk.green('✔ Initialized Gemini Handshake (.gemini/styleguide.md)'));
+        }
+    }
+
+    // OpenAI Codex / Aider (AGENTS.md - Universal Standard)
+    if (targetIDE === 'codex' || targetIDE === 'all') {
+        const agentsPath = path.join(cwd, 'AGENTS.md');
+        const agentsContent = `# AGENTS.md - Universal AI Agent Instructions
+
+This file provides instructions for AI coding agents (Codex, Aider, and others).
+
+## Setup
+
+\`\`\`bash
+npm install
+npm run dev
+npm test
+\`\`\`
+
+## Quality Gates
+
+This project uses Rigour. Before completing any task:
+
+\`\`\`bash
+npx @rigour-labs/cli check
+\`\`\`
+
+${ruleContent}`;
+
+        if (!(await fs.pathExists(agentsPath))) {
+            await fs.writeFile(agentsPath, agentsContent);
+            console.log(chalk.green('✔ Initialized Universal Agent Handshake (AGENTS.md)'));
+        }
+    }
+
+    // Windsurf (.windsurfrules)
+    if (targetIDE === 'windsurf' || targetIDE === 'all') {
+        const windsurfPath = path.join(cwd, '.windsurfrules');
+        if (!(await fs.pathExists(windsurfPath))) {
+            await fs.writeFile(windsurfPath, ruleContent);
+            console.log(chalk.green('✔ Initialized Windsurf Handshake (.windsurfrules)'));
         }
     }
 

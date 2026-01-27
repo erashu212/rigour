@@ -79,8 +79,15 @@ jobs:
         if: success()
         working-directory: packages/rigour-mcp
         run: |
+          # Get the version that was just published/tagged
+          VERSION=$(npm view @rigour-labs/mcp dist-tags.latest)
+          
+          echo "Syncing server.json to version $VERSION"
+          jq ".version = \"$VERSION\" | .packages[0].version = \"$VERSION\"" server.json > server.json.tmp && mv server.json.tmp server.json
+          
           curl -sL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz
           chmod +x mcp-publisher
           ./mcp-publisher login github-oidc
           ./mcp-publisher publish
+
 

@@ -8,7 +8,16 @@ import {
 import fs from "fs-extra";
 import path from "path";
 import yaml from "yaml";
-import { GateRunner, ConfigSchema, Report } from "@rigour-labs/core";
+import {
+    GateRunner,
+    ConfigSchema,
+    Report,
+    PatternMatcher,
+    loadPatternIndex,
+    getDefaultIndexPath,
+    StalenessDetector,
+    SecurityDetector
+} from "@rigour-labs/core";
 
 const server = new Server(
     {
@@ -199,6 +208,46 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         },
                     },
                     required: ["cwd", "key"],
+                },
+            },
+            {
+                name: "rigour_check_pattern",
+                description: "Checks if a proposed code pattern (function, component, etc.) already exists, is stale, or has security vulnerabilities (CVEs). CALL THIS BEFORE CREATING NEW CODE.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        cwd: {
+                            type: "string",
+                            description: "Absolute path to the project root.",
+                        },
+                        name: {
+                            type: "string",
+                            description: "The name of the function, class, or component you want to create.",
+                        },
+                        type: {
+                            type: "string",
+                            description: "The type of pattern (e.g., 'function', 'component', 'hook', 'type').",
+                        },
+                        intent: {
+                            type: "string",
+                            description: "What the code is for (e.g., 'format dates', 'user authentication').",
+                        },
+                    },
+                    required: ["cwd", "name"],
+                },
+            },
+            {
+                name: "rigour_security_audit",
+                description: "Runs a live security audit (CVE check) on the project dependencies.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        cwd: {
+                            type: "string",
+                            description: "Absolute path to the project root.",
+                        },
+                    },
+                    required: ["cwd"],
                 },
             },
         ],
@@ -424,6 +473,95 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         {
                             type: "text",
                             text: `MEMORY DELETED: "${key}" has been removed.`,
+                        },
+                    ],
+                };
+            }
+
+            case "rigour_check_pattern": {
+                const { name: patternName, type, intent } = args as any;
+                const indexPath = getDefaultIndexPath(cwd);
+                const index = await loadPatternIndex(indexPath);
+
+                let resultText = "";
+
+                // 1. Check for Reinvention
+                if (index) {
+                    const matcher = new PatternMatcher(index);
+                    const matchResult = await matcher.match({ name: patternName, type, intent });
+
+                    if (matchResult.status === "FOUND_SIMILAR") {
+                        resultText += `🚨 PATTERN REINVENTION DETECTED\n`;
+                        resultText += `Similar pattern already exists: "${matchResult.matches[0].pattern.name}" in ${matchResult.matches[0].pattern.file}\n`;
+                        resultText += `SUGGESTION: ${matchResult.suggestion}\n\n`;
+                    }
+                } else {
+                    resultText += `⚠️ Pattern index not found. Run 'rigour index' to enable reinvention detection.\n\n`;
+                }
+
+                // 2. Check for Staleness/Best Practices
+                const detector = new StalenessDetector(cwd);
+                const staleness = await detector.checkStaleness(`${type || 'function'} ${patternName} {}`);
+
+                if (staleness.status !== "FRESH") {
+                    resultText += `⚠️ STALENESS/ANTI-PATTERN WARNING\n`;
+                    for (const issue of staleness.issues) {
+                        resultText += `- ${issue.reason}\n  REPLACEMENT: ${issue.replacement}\n`;
+                    }
+                    resultText += `\n`;
+                }
+
+                // 3. Check Security for this library (if it's an import)
+                if (intent && intent.includes('import')) {
+                    const security = new SecurityDetector(cwd);
+                    const audit = await security.runAudit();
+                    const relatedVulns = audit.vulnerabilities.filter(v =>
+                        patternName.toLowerCase().includes(v.packageName.toLowerCase()) ||
+                        intent.toLowerCase().includes(v.packageName.toLowerCase())
+                    );
+
+                    if (relatedVulns.length > 0) {
+                        resultText += `🛡️ SECURITY/CVE WARNING\n`;
+                        for (const v of relatedVulns) {
+                            resultText += `- [${v.severity.toUpperCase()}] ${v.packageName}: ${v.title} (${v.url})\n`;
+                        }
+                        resultText += `\n`;
+                    }
+                }
+
+                if (!resultText) {
+                    resultText = `✅ Pattern "${patternName}" is fresh, secure, and unique to the codebase.\n\nRECOMMENDED ACTION: Proceed with implementation.`;
+                } else {
+                    let recommendation = "Proceed with caution, addressing the warnings above.";
+                    if (resultText.includes("🚨 PATTERN REINVENTION")) {
+                        recommendation = "STOP and REUSE the existing pattern mentioned above. Do not create a duplicate.";
+                    } else if (resultText.includes("🛡️ SECURITY/CVE WARNING")) {
+                        recommendation = "STOP and update your dependencies or find an alternative library. Do not proceed with vulnerable code.";
+                    } else if (resultText.includes("⚠️ STALENESS")) {
+                        recommendation = "Follow the replacement suggestion to ensure best practices.";
+                    }
+
+                    resultText += `\nRECOMMENDED ACTION: ${recommendation}`;
+                }
+
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: resultText,
+                        },
+                    ],
+                };
+            }
+
+            case "rigour_security_audit": {
+                const security = new SecurityDetector(cwd);
+                const summary = await security.getSecuritySummary();
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: summary,
                         },
                     ],
                 };

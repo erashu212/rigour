@@ -7,3 +7,4 @@ export * from './types/fix-packet.js';
 export { Gate, GateContext } from './gates/base.js';
 export { RetryLoopBreakerGate } from './gates/retry-loop-breaker.js';
 export * from './utils/logger.js';
+export * from './pattern-index/index.js';

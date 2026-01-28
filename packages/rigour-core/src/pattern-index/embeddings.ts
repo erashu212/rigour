@@ -27,10 +27,7 @@ async function getPipeline() {
     if (!embeddingPipeline) {
         try {
             // Dynamic import to isolate native dependency issues (like sharp)
-            const { pipeline, env } = await import('@xenova/transformers');
-
-            // Disable image processing features to avoid native 'sharp' dependency issues
-            env.allowImageProcessors = false;
+            const { pipeline } = await import('@xenova/transformers');
 
             // Using a compact but high-quality model for local embeddings
             embeddingPipeline = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');

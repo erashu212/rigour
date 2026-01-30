@@ -20,7 +20,7 @@
     },
     "scripts": {
         "build": "tsc && pnpm bundle-studio",
-        "bundle-studio": "mkdir -p studio-dist && cp -r ../rigour-studio/dist/* studio-dist/",
+        "bundle-studio": "node scripts/bundle-studio.js",
         "test": "vitest run"
     },
     "dependencies": {

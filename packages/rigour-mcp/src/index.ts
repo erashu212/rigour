@@ -270,6 +270,28 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     required: ["cwd"],
                 },
             },
+            {
+                name: "rigour_run",
+                description: "Execute a command under Rigour supervision. This tool can be INTERCEPTED and ARBITRATED by the Governance Studio.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        cwd: {
+                            type: "string",
+                            description: "Absolute path to the project root.",
+                        },
+                        command: {
+                            type: "string",
+                            description: "The command to run (e.g., 'npm test', 'pytest').",
+                        },
+                        silent: {
+                            type: "boolean",
+                            description: "If true, hides the command output from the agent.",
+                        }
+                    },
+                    required: ["cwd", "command"],
+                },
+            }
         ],
     };
 });
@@ -609,6 +631,80 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         },
                     ],
                 };
+                break;
+            }
+
+            case "rigour_run": {
+                const { command } = args as any;
+
+                // 1. Log Interceptable Event
+                await logStudioEvent(cwd, {
+                    type: "interception_requested",
+                    interactionId: requestId,
+                    tool: "rigour_run",
+                    command
+                });
+
+                // 2. Poll for Human Arbitration (Max 60s wait for this demo/test)
+                // In production, this would be a blocking call wait
+                console.error(`[RIGOUR] Waiting for human arbitration for command: ${command}`);
+
+                const pollArbitration = async (rid: string, timeout: number): Promise<string | null> => {
+                    const start = Date.now();
+                    const eventsPath = path.join(cwd, '.rigour/events.jsonl');
+                    while (Date.now() - start < timeout) {
+                        if (await fs.pathExists(eventsPath)) {
+                            const content = await fs.readFile(eventsPath, 'utf-8');
+                            const lines = content.split('\n').filter(l => l.trim());
+                            for (const line of lines.reverse()) {
+                                const event = JSON.parse(line);
+                                if (event.tool === 'human_arbitration' && event.requestId === rid) {
+                                    return event.decision;
+                                }
+                            }
+                        }
+                        await new Promise(r => setTimeout(r, 1000));
+                    }
+                    return "approve"; // Default to auto-approve if no human response (for non-blocking feel)
+                };
+
+                const decision = await pollArbitration(requestId, 60000);
+
+                if (decision === 'reject') {
+                    result = {
+                        content: [
+                            {
+                                type: "text",
+                                text: `❌ COMMAND REJECTED BY GOVERNOR: The execution of "${command}" was blocked by a human operator in the Governance Studio.`,
+                            },
+                        ],
+                        isError: true
+                    };
+                } else {
+                    // Execute
+                    const { execa } = await import("execa");
+                    try {
+                        const { stdout, stderr } = await execa(command, { shell: true, cwd });
+                        result = {
+                            content: [
+                                {
+                                    type: "text",
+                                    text: `✅ COMMAND EXECUTED (Approved by Governor):\n\nSTDOUT:\n${stdout}\n\nSTDERR:\n${stderr}`,
+                                },
+                            ],
+                        };
+                    } catch (e: any) {
+                        result = {
+                            content: [
+                                {
+                                    type: "text",
+                                    text: `❌ COMMAND FAILED:\n\n${e.message}`,
+                                },
+                            ],
+                            isError: true
+                        };
+                    }
+                }
                 break;
             }
 

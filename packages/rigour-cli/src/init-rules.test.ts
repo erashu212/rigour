@@ -39,7 +39,7 @@ describe('Init Command Rules Verification', () => {
         expect(instructionsContent).toContain('VERIFICATION PROOF REQUIRED');
 
         // Check for key sections in universal instructions
-        expect(instructionsContent).toContain('# 🛡️ Rigour: Engineering Excellence Protocol');
+        expect(instructionsContent).toContain('# 🛡️ Rigour: Mandatory Engineering Governance Protocol');
         expect(instructionsContent).toContain('# Code Quality Standards');
 
         // Check that MDC includes agnostic rules

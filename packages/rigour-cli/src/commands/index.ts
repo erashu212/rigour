@@ -8,6 +8,25 @@ import { Command } from 'commander';
 import path from 'path';
 import chalk from 'chalk';
 import ora from 'ora';
+import fs from 'fs-extra';
+import { randomUUID } from 'crypto';
+
+// Helper to log events for Rigour Studio
+async function logStudioEvent(cwd: string, event: any) {
+    try {
+        const rigourDir = path.join(cwd, ".rigour");
+        await fs.ensureDir(rigourDir);
+        const eventsPath = path.join(rigourDir, "events.jsonl");
+        const logEntry = JSON.stringify({
+            id: randomUUID(),
+            timestamp: new Date().toISOString(),
+            ...event
+        }) + "\n";
+        await fs.appendFile(eventsPath, logEntry);
+    } catch {
+        // Silent fail
+    }
+}
 // Dynamic imports are used inside the action handler below to prevent
 // native dependency issues from affecting the rest of the CLI.
 
@@ -31,6 +50,14 @@ export const indexCommand = new Command('index')
         const spinner = ora('Initializing pattern indexer...').start();
 
         try {
+            const requestId = randomUUID();
+            await logStudioEvent(cwd, {
+                type: "tool_call",
+                requestId,
+                tool: "rigour_index",
+                arguments: options
+            });
+
             const indexer = new PatternIndexer(cwd, {
                 useEmbeddings: options.semantic
             });
@@ -50,6 +77,14 @@ export const indexCommand = new Command('index')
             await savePatternIndex(index, indexPath);
 
             spinner.succeed(chalk.green(`Pattern index built successfully!`));
+
+            await logStudioEvent(cwd, {
+                type: "tool_response",
+                requestId,
+                tool: "rigour_index",
+                status: "success",
+                content: [{ type: "text", text: `Index built: ${index.stats.totalPatterns} patterns` }]
+            });
             console.log(chalk.blue(`- Total Patterns: ${index.stats.totalPatterns}`));
             console.log(chalk.blue(`- Total Files: ${index.stats.totalFiles}`));
             console.log(chalk.blue(`- Index Path: ${indexPath}`));

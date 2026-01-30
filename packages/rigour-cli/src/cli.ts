@@ -7,11 +7,13 @@ import { runLoop } from './commands/run.js';
 import { guideCommand } from './commands/guide.js';
 import { setupCommand } from './commands/setup.js';
 import { indexCommand } from './commands/index.js';
+import { studioCommand } from './commands/studio.js';
 import chalk from 'chalk';
 
 const program = new Command();
 
 program.addCommand(indexCommand);
+program.addCommand(studioCommand);
 
 program
     .name('rigour')

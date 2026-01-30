@@ -1,6 +1,7 @@
 {
     "name": "@rigour-labs/cli",
     "version": "1.0.0",
+    "type": "module",
     "bin": {
         "rigour": "dist/cli.js"
     },

@@ -51,3 +51,9 @@ export {
     OverrideManager,
     loadConfigOverrides
 } from './overrides.js';
+// Embeddings
+export {
+    generateEmbedding,
+    semanticSearch,
+    cosineSimilarity
+} from './embeddings.js';

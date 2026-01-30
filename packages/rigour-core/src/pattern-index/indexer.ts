@@ -22,9 +22,24 @@ import { generateEmbedding } from './embeddings.js';
 
 /** Default configuration for the indexer */
 const DEFAULT_CONFIG: PatternIndexConfig = {
-    include: ['src/**/*', 'lib/**/*', 'app/**/*', 'components/**/*', 'utils/**/*', 'hooks/**/*'],
-    exclude: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/.git/**', '**/coverage/**'],
-    extensions: ['.ts', '.tsx', '.js', '.jsx'],
+    include: ['src/**/*', 'lib/**/*', 'app/**/*', 'components/**/*', 'utils/**/*', 'hooks/**/*', '**/tests/**/*', '**/test/**/*'],
+    exclude: [
+        '**/node_modules/**',
+        '**/dist/**',
+        '**/build/**',
+        '**/.git/**',
+        '**/coverage/**',
+        '**/venv/**',
+        '**/.venv/**',
+        '**/__pycache__/**',
+        '**/site-packages/**',
+        '**/.pytest_cache/**',
+        '**/target/**', // Rust build dir
+        '**/bin/**',
+        '**/.gradle/**',
+        '**/.mvn/**'
+    ],
+    extensions: ['.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.rs', '.java', '.cpp', '.h', '.rb', '.php', '.cs', '.kt'],
     indexTests: false,
     indexNodeModules: false,
     minNameLength: 2,
@@ -226,30 +241,344 @@ export class PatternIndexer {
      * Extract patterns from a single file using TypeScript AST.
      */
     private async extractPatterns(filePath: string, content: string): Promise<PatternEntry[]> {
+        const ext = path.extname(filePath).toLowerCase();
+
+        // Specific high-fidelity extractors
+        if (ext === '.py') return this.extractPythonPatterns(filePath, content);
+        if (ext === '.go') return this.extractGoPatterns(filePath, content);
+        if (ext === '.rs') return this.extractRustPatterns(filePath, content);
+        if (ext === '.java' || ext === '.kt' || ext === '.cs') return this.extractJVMStylePatterns(filePath, content);
+
+        // Fallback for TS/JS or other C-style languages
         const patterns: PatternEntry[] = [];
         const relativePath = path.relative(this.rootDir, filePath);
 
-        // Parse with TypeScript
-        const sourceFile = ts.createSourceFile(
-            filePath,
-            content,
-            ts.ScriptTarget.Latest,
-            true,
-            this.getScriptKind(filePath)
-        );
+        // For TS/JS, use AST
+        if (['.ts', '.tsx', '.js', '.jsx'].includes(ext)) {
+            const sourceFile = ts.createSourceFile(
+                filePath,
+                content,
+                ts.ScriptTarget.Latest,
+                true,
+                this.getScriptKind(filePath)
+            );
 
-        // Walk the AST
-        const visit = (node: ts.Node) => {
-            const pattern = this.nodeToPattern(node, sourceFile, relativePath, content);
-            if (pattern) {
-                patterns.push(pattern);
+            const visit = (node: ts.Node) => {
+                const pattern = this.nodeToPattern(node, sourceFile, relativePath, content);
+                if (pattern) patterns.push(pattern);
+                ts.forEachChild(node, visit);
+            };
+            visit(sourceFile);
+            return patterns;
+        }
+
+        // Generic C-style fallback (C++, PHP, etc.)
+        return this.extractGenericCPatterns(filePath, content);
+    }
+
+    /**
+     * Extract patterns from Go files.
+     */
+    private extractGoPatterns(filePath: string, content: string): PatternEntry[] {
+        const patterns: PatternEntry[] = [];
+        const relativePath = path.relative(this.rootDir, filePath);
+        const lines = content.split('\n');
+
+        const funcRegex = /^func\s+(?:\([^)]*\)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*([^\{]*)\s*\{/;
+        const typeRegex = /^type\s+([A-Za-z_][A-Za-z0-9_]*)\s+(struct|interface)/;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+
+            // Functions
+            const funcMatch = line.match(funcRegex);
+            if (funcMatch) {
+                const name = funcMatch[1];
+                patterns.push(this.createPatternEntry({
+                    type: 'function',
+                    name,
+                    file: relativePath,
+                    line: i + 1,
+                    endLine: this.findBraceBlockEnd(lines, i),
+                    signature: `func ${name}(${funcMatch[2]}) ${funcMatch[3].trim()}`,
+                    description: this.getCOMLineComments(lines, i - 1),
+                    keywords: this.extractKeywords(name),
+                    content: this.getBraceBlockContent(lines, i),
+                    exported: /^[A-Z]/.test(name)
+                }));
             }
-            ts.forEachChild(node, visit);
-        };
 
-        visit(sourceFile);
+            // Types/Structs
+            const typeMatch = line.match(typeRegex);
+            if (typeMatch) {
+                const name = typeMatch[1];
+                patterns.push(this.createPatternEntry({
+                    type: typeMatch[2] as any,
+                    name,
+                    file: relativePath,
+                    line: i + 1,
+                    endLine: this.findBraceBlockEnd(lines, i),
+                    signature: `type ${name} ${typeMatch[2]}`,
+                    description: this.getCOMLineComments(lines, i - 1),
+                    keywords: this.extractKeywords(name),
+                    content: this.getBraceBlockContent(lines, i),
+                    exported: /^[A-Z]/.test(name)
+                }));
+            }
+        }
+        return patterns;
+    }
+
+    /**
+     * Extract patterns from Rust files.
+     */
+    private extractRustPatterns(filePath: string, content: string): PatternEntry[] {
+        const patterns: PatternEntry[] = [];
+        const relativePath = path.relative(this.rootDir, filePath);
+        const lines = content.split('\n');
+
+        const fnRegex = /^(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*[<(][^)]*[>)]\s*(?:->\s*[^\{]+)?\s*\{/;
+        const typeRegex = /^(?:pub\s+)?(struct|enum|trait)\s+([A-Za-z_][A-Za-z0-9_]*)/;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+
+            const fnMatch = line.match(fnRegex);
+            if (fnMatch) {
+                const name = fnMatch[1];
+                patterns.push(this.createPatternEntry({
+                    type: 'function',
+                    name,
+                    file: relativePath,
+                    line: i + 1,
+                    endLine: this.findBraceBlockEnd(lines, i),
+                    signature: line.split('{')[0].trim(),
+                    description: this.getCOMLineComments(lines, i - 1),
+                    keywords: this.extractKeywords(name),
+                    content: this.getBraceBlockContent(lines, i),
+                    exported: line.startsWith('pub')
+                }));
+            }
+        }
+        return patterns;
+    }
+
+    /**
+     * Generic extraction for C-style languages (Java, C++, PHP, etc.)
+     */
+    private extractJVMStylePatterns(filePath: string, content: string): PatternEntry[] {
+        const patterns: PatternEntry[] = [];
+        const relativePath = path.relative(this.rootDir, filePath);
+        const lines = content.split('\n');
+
+        // Simplified for classes and methods
+        const classRegex = /^(?:public|private|protected|internal)?\s*(?:static\s+)?(?:final\s+)?(?:class|interface|enum)\s+([A-Za-z0-9_]+)/;
+        const methodRegex = /^(?:public|private|protected|internal)\s+(?:static\s+)?(?:async\s+)?(?:[A-Za-z0-9_<>\[\]]+\s+)([A-Za-z0-9_]+)\s*\(/;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+
+            const classMatch = line.match(classRegex);
+            if (classMatch) {
+                patterns.push(this.createPatternEntry({
+                    type: 'class',
+                    name: classMatch[1],
+                    file: relativePath,
+                    line: i + 1,
+                    endLine: this.findBraceBlockEnd(lines, i),
+                    signature: line,
+                    description: this.getJavaDoc(lines, i - 1),
+                    keywords: this.extractKeywords(classMatch[1]),
+                    content: this.getBraceBlockContent(lines, i),
+                    exported: line.includes('public')
+                }));
+            }
+        }
+        return patterns;
+    }
+
+    private extractGenericCPatterns(filePath: string, content: string): PatternEntry[] {
+        // Fallback for everything else
+        return [];
+    }
+
+    private getCOMLineComments(lines: string[], startIndex: number): string {
+        let comments = [];
+        for (let i = startIndex; i >= 0; i--) {
+            const line = lines[i].trim();
+            if (line.startsWith('//')) comments.unshift(line.replace('//', '').trim());
+            else break;
+        }
+        return comments.join(' ');
+    }
+
+    private getJavaDoc(lines: string[], startIndex: number): string {
+        let comments = [];
+        let inDoc = false;
+        for (let i = startIndex; i >= 0; i--) {
+            const line = lines[i].trim();
+            if (line.endsWith('*/')) inDoc = true;
+            if (inDoc) comments.unshift(line.replace('/**', '').replace('*/', '').replace('*', '').trim());
+            if (line.startsWith('/**')) break;
+        }
+        return comments.join(' ');
+    }
+
+    private findBraceBlockEnd(lines: string[], startIndex: number): number {
+        let braceCount = 0;
+        let started = false;
+        for (let i = startIndex; i < lines.length; i++) {
+            const line = lines[i];
+            if (line.includes('{')) {
+                braceCount += (line.match(/\{/g) || []).length;
+                started = true;
+            }
+            if (line.includes('}')) {
+                braceCount -= (line.match(/\}/g) || []).length;
+            }
+            if (started && braceCount === 0) return i + 1;
+        }
+        return lines.length;
+    }
+
+    private getBraceBlockContent(lines: string[], startIndex: number): string {
+        const end = this.findBraceBlockEnd(lines, startIndex);
+        return lines.slice(startIndex, end).join('\n');
+    }
+
+    /**
+     * Extract patterns from Python files using regex.
+     */
+    private extractPythonPatterns(filePath: string, content: string): PatternEntry[] {
+        const patterns: PatternEntry[] = [];
+        const relativePath = path.relative(this.rootDir, filePath);
+        const lines = content.split('\n');
+
+        // Regex for Class definitions
+        const classRegex = /^class\s+([A-Za-z_][A-Za-z0-9_]*)\s*(\([^)]*\))?\s*:/;
+        // Regex for Function definitions (including async)
+        const funcRegex = /^(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*(?:->\s*[^:]+)?\s*:/;
+        // Regex for Constants (Top-level UPPER_CASE variables)
+        const constRegex = /^([A-Z][A-Z0-9_]*)\s*=\s*(.+)$/;
+
+        for (let i = 0; i < lines.length; i++) {
+            const lineContent = lines[i].trim();
+            const originalLine = lines[i];
+            const lineNum = i + 1;
+
+            // Classes
+            const classMatch = originalLine.match(classRegex);
+            if (classMatch) {
+                const name = classMatch[1];
+                if (name.length >= this.config.minNameLength) {
+                    patterns.push(this.createPatternEntry({
+                        type: this.detectPythonClassType(name),
+                        name,
+                        file: relativePath,
+                        line: lineNum,
+                        endLine: this.findPythonBlockEnd(lines, i),
+                        signature: `class ${name}${classMatch[2] || ''}`,
+                        description: this.getPythonDocstring(lines, i + 1),
+                        keywords: this.extractKeywords(name),
+                        content: this.getPythonBlockContent(lines, i),
+                        exported: !name.startsWith('_')
+                    }));
+                    continue;
+                }
+            }
+
+            // Functions
+            const funcMatch = originalLine.match(funcRegex);
+            if (funcMatch) {
+                const name = funcMatch[1];
+                if (name.length >= this.config.minNameLength) {
+                    patterns.push(this.createPatternEntry({
+                        type: this.detectPythonFunctionType(name),
+                        name,
+                        file: relativePath,
+                        line: lineNum,
+                        endLine: this.findPythonBlockEnd(lines, i),
+                        signature: `def ${name}(${funcMatch[2]})`,
+                        description: this.getPythonDocstring(lines, i + 1),
+                        keywords: this.extractKeywords(name),
+                        content: this.getPythonBlockContent(lines, i),
+                        exported: !name.startsWith('_')
+                    }));
+                    continue;
+                }
+            }
+
+            // Constants
+            const constMatch = originalLine.match(constRegex);
+            if (constMatch) {
+                const name = constMatch[1];
+                if (name.length >= this.config.minNameLength) {
+                    patterns.push(this.createPatternEntry({
+                        type: 'constant',
+                        name,
+                        file: relativePath,
+                        line: lineNum,
+                        endLine: lineNum,
+                        signature: `${name} = ...`,
+                        description: '',
+                        keywords: this.extractKeywords(name),
+                        content: originalLine,
+                        exported: !name.startsWith('_')
+                    }));
+                }
+            }
+        }
 
         return patterns;
+    }
+
+    private detectPythonClassType(name: string): PatternType {
+        if (name.endsWith('Error') || name.endsWith('Exception')) return 'error';
+        if (name.endsWith('Model')) return 'model';
+        if (name.endsWith('Schema')) return 'schema';
+        return 'class';
+    }
+
+    private detectPythonFunctionType(name: string): PatternType {
+        if (name.startsWith('test_')) return 'function'; // Tests are filtered by indexTests config
+        if (name.includes('middleware')) return 'middleware';
+        if (name.includes('handler')) return 'handler';
+        return 'function';
+    }
+
+    private getPythonDocstring(lines: string[], startIndex: number): string {
+        if (startIndex >= lines.length) return '';
+        const nextLine = lines[startIndex].trim();
+        if (nextLine.startsWith('"""') || nextLine.startsWith("'''")) {
+            const quote = nextLine.startsWith('"""') ? '"""' : "'''";
+            let doc = nextLine.replace(quote, '');
+            if (doc.endsWith(quote)) return doc.replace(quote, '').trim();
+
+            for (let i = startIndex + 1; i < lines.length; i++) {
+                if (lines[i].includes(quote)) {
+                    doc += ' ' + lines[i].split(quote)[0].trim();
+                    break;
+                }
+                doc += ' ' + lines[i].trim();
+            }
+            return doc.trim();
+        }
+        return '';
+    }
+
+    private findPythonBlockEnd(lines: string[], startIndex: number): number {
+        const startIndent = lines[startIndex].search(/\S/);
+        for (let i = startIndex + 1; i < lines.length; i++) {
+            if (lines[i].trim() === '') continue;
+            const currentIndent = lines[i].search(/\S/);
+            if (currentIndent <= startIndent) return i;
+        }
+        return lines.length;
+    }
+
+    private getPythonBlockContent(lines: string[], startIndex: number): string {
+        const endLine = this.findPythonBlockEnd(lines, startIndex);
+        return lines.slice(startIndex, endLine).join('\n');
     }
 
     /**

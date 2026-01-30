@@ -1,0 +1,321 @@
+import React, { useState, useEffect } from 'react';
+import {
+    Activity,
+    ShieldCheck,
+    Database,
+    Cpu,
+    Terminal,
+    Settings,
+    Info,
+    ChevronRight,
+    Wifi,
+    Lock,
+    X,
+    Folder,
+    Sun,
+    Moon,
+    CheckCircle,
+    XCircle
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { DiffEditor } from '@monaco-editor/react';
+import { DiffViewer } from './components/DiffViewer';
+import { FileTree } from './components/FileTree';
+import { MemoryBank } from './components/MemoryBank';
+import { PatternIndex } from './components/PatternIndex';
+import { QualityGates } from './components/QualityGates';
+import { AuditLog } from './components/AuditLog';
+
+function App() {
+    const [theme, setTheme] = useState(() => localStorage.getItem('rigour-theme') || 'dark');
+    const [activeTab, setActiveTab] = useState('memory');
+    const [logs, setLogs] = useState<any[]>([]);
+    const [selectedDiff, setSelectedDiff] = useState<{
+        filename: string;
+        original: string;
+        modified: string;
+    } | null>(null);
+    const [inspectingLog, setInspectingLog] = useState<any | null>(null);
+    const [isGovernanceOpen, setIsGovernanceOpen] = useState(false);
+    const [projectTree, setProjectTree] = useState<string[]>([]);
+
+    React.useEffect(() => {
+        const eventSource = new EventSource('/api/events');
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                setLogs(prev => [data, ...prev].slice(0, 100));
+            } catch (e) {
+                console.error('Failed to parse event', e);
+            }
+        };
+
+        // Fetch project tree
+        fetch('/api/tree')
+            .then(res => res.json())
+            .then(setProjectTree)
+            .catch(err => console.error('Failed to fetch tree', err));
+
+        return () => eventSource.close();
+    }, []);
+
+    useEffect(() => {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('rigour-theme', theme);
+    }, [theme]);
+
+    const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
+
+    const [rigourConfig, setRigourConfig] = useState<string>('');
+    const [memoryData, setMemoryData] = useState<any>({});
+    const [indexStats, setIndexStats] = useState<any>({});
+
+    useEffect(() => {
+        const fetchMeta = async () => {
+            try {
+                const [cfg, mem, idx] = await Promise.all([
+                    fetch('/api/config').then(r => r.ok ? r.text() : ''),
+                    fetch('/api/memory').then(r => r.json()),
+                    fetch('/api/index-stats').then(r => r.json())
+                ]);
+                setRigourConfig(cfg);
+                setMemoryData(mem);
+                setIndexStats(idx);
+            } catch (err) {
+                console.error('Failed to fetch meta data', err);
+            }
+        };
+        fetchMeta();
+    }, []);
+
+    const fetchFileContent = async (filename: string) => {
+        try {
+            // Strip line count annotation if present (e.g., "file.py (123 lines)")
+            const cleanPath = filename.replace(/\s*\(\d+\s*lines\)$/, '');
+            const res = await fetch(`/api/file?path=${encodeURIComponent(cleanPath)}`);
+            const content = await res.text();
+            setSelectedDiff({
+                filename: cleanPath,
+                original: content,
+                modified: content
+            });
+        } catch (err) {
+            console.error('Failed to fetch file content', err);
+        }
+    };
+
+    const handleArbitration = async (decision: 'approve' | 'reject') => {
+        if (!inspectingLog) return;
+
+        try {
+            await fetch('/api/arbitrate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    requestId: inspectingLog.requestId || inspectingLog.id,
+                    decision,
+                    timestamp: new Date().toISOString()
+                })
+            });
+
+            // Optimistic update
+            setLogs(prev => prev.map(l => {
+                if ((l.requestId || l.id) === (inspectingLog.requestId || inspectingLog.id)) {
+                    return { ...l, status: decision === 'approve' ? 'success' : 'error', arbitrated: true, decision };
+                }
+                return l;
+            }));
+
+            setIsGovernanceOpen(false);
+            setInspectingLog(null);
+        } catch (err) {
+            console.error('Arbitration failed', err);
+        }
+    };
+
+    const navItems = [
+        { id: 'audit', label: 'Audit Log', icon: Terminal },
+        { id: 'gates', label: 'Quality Gates', icon: ShieldCheck },
+        { id: 'patterns', label: 'Pattern Index', icon: Database },
+        { id: 'memory', label: 'Memory Bank', icon: Cpu },
+    ];
+
+    return (
+        <div className="studio">
+            <aside className="sidebar">
+                <div className="brand">
+                    <div className="logo-icon">R</div>
+                    <span>Studio</span>
+                    <div className="version-pill">v2.9</div>
+                </div>
+
+                <nav>
+                    {navItems.map((item) => (
+                        <button
+                            key={item.id}
+                            className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
+                            onClick={() => setActiveTab(item.id)}
+                        >
+                            <item.icon size={18} />
+                            <span>{item.label}</span>
+                            {activeTab === item.id && (
+                                <motion.div layoutId="nav-glow" className="nav-glow" />
+                            )}
+                        </button>
+                    ))}
+                </nav>
+
+                <div className="sidebar-footer">
+                    <div className="trust-indicator">
+                        <Lock size={14} />
+                        <span>Local Governance</span>
+                    </div>
+                    <button className="footer-item"><Settings size={18} /></button>
+                    <button className="footer-item"><Info size={18} /></button>
+                </div>
+            </aside>
+
+            <main className="main-content">
+                <header>
+                    <div className="header-left">
+                        <div className="breadcrumb">
+                            <span>Control Path</span>
+                            <ChevronRight size={14} />
+                            <span className="current">{navItems.find(n => n.id === activeTab)?.label}</span>
+                        </div>
+                    </div>
+                    <div className="header-right">
+                        <button className="theme-toggle" onClick={toggleTheme}>
+                            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                        </button>
+                        <div className="connection-status">
+                            <Wifi size={14} className="wifi-icon" />
+                            <span>Shadowing: .rigour/events.jsonl</span>
+                        </div>
+                        <div className="status-indicator">
+                            <div className="pulse-emitter" />
+                            <span>Live Mode</span>
+                        </div>
+                    </div>
+                </header>
+
+                <div className="view-container">
+                    <AnimatePresence mode="wait">
+                        {activeTab === 'audit' && (
+                            <motion.div
+                                key="audit"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="full-view"
+                            >
+                                <AuditLog
+                                    logs={logs}
+                                    onClearLogs={() => setLogs([])}
+                                    onSelectLog={(log) => {
+                                        setInspectingLog(log);
+                                        // Only open full Governance overlay if it's a report
+                                        if (log?._rigour_report) {
+                                            const firstFile = log._rigour_report.failures?.[0]?.files?.[0];
+                                            if (firstFile) fetchFileContent(firstFile);
+                                            else setSelectedDiff(null);
+                                            setIsGovernanceOpen(true);
+                                        } else {
+                                            setSelectedDiff(null);
+                                            setIsGovernanceOpen(false);
+                                        }
+                                    }}
+                                    selectedLog={inspectingLog}
+                                />
+                            </motion.div>
+                        )}
+                        {activeTab === 'gates' && (
+                            <motion.div
+                                key="gates"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="full-view"
+                            >
+                                <QualityGates />
+                            </motion.div>
+                        )}
+
+                        {activeTab === 'patterns' && (
+                            <motion.div
+                                key="patterns"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="full-view"
+                            >
+                                <PatternIndex />
+                            </motion.div>
+                        )}
+
+                        {activeTab === 'memory' && (
+                            <motion.div
+                                key="memory"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                className="full-view"
+                            >
+                                <MemoryBank />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {inspectingLog && isGovernanceOpen && (
+                        <div className="governance-overlay">
+                            <div className="governance-window">
+                                <div className="governance-header">
+                                    <div className="title">
+                                        <ShieldCheck size={20} />
+                                        <span>Governance Audit: {inspectingLog.tool}</span>
+                                    </div>
+                                    <div className="hitl-actions">
+                                        <button className="btn-approve" onClick={() => handleArbitration('approve')}>
+                                            <CheckCircle size={16} /> Approve (Override)
+                                        </button>
+                                        <button className="btn-reject" onClick={() => handleArbitration('reject')}>
+                                            <XCircle size={16} /> Reject Change
+                                        </button>
+                                        <div className="divider" />
+                                        <button onClick={() => setIsGovernanceOpen(false)} className="close-btn"><X size={20} /></button>
+                                    </div>
+                                </div>
+                                <div className="governance-body">
+                                    <FileTree
+                                        files={(inspectingLog._rigour_report?.failures?.flatMap((f: any) => f.files || []) || projectTree).map((f: string) => f.replace(/\s*\(\d+\s*lines\)$/, ''))}
+                                        onSelect={(file) => fetchFileContent(file)}
+                                        activeFile={selectedDiff?.filename}
+                                        violatedFiles={(inspectingLog._rigour_report?.failures?.flatMap((f: any) => f.files || []) || []).map((f: string) => f.replace(/\s*\(\d+\s*lines\)$/, ''))}
+                                    />
+                                    <div className="diff-view-area">
+                                        {selectedDiff ? (
+                                            <DiffViewer
+                                                filename={selectedDiff.filename}
+                                                originalCode={selectedDiff.original}
+                                                modifiedCode={selectedDiff.modified}
+                                                onClose={() => setSelectedDiff(null)}
+                                                theme={theme as 'dark' | 'light'}
+                                            />
+                                        ) : (
+                                            <div className="diff-placeholder">
+                                                <Activity size={48} />
+                                                <p>Select a file to audit the proposed changes</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </main>
+        </div>
+    );
+}
+
+export default App;

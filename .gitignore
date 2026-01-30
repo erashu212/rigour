@@ -37,3 +37,7 @@ yarn-error.log*
 .env
 .env.*
 !.env.example
+
+# Rigour Artifacts
+rigour-fix-packet.json
+.rigour/

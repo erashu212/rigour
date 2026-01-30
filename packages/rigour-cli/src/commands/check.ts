@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import yaml from 'yaml';
 import { GateRunner, ConfigSchema, Failure } from '@rigour-labs/core';
 import inquirer from 'inquirer';
+import { randomUUID } from 'crypto';
 
 // Exit codes per spec
 const EXIT_PASS = 0;
@@ -15,6 +16,23 @@ export interface CheckOptions {
     ci?: boolean;
     json?: boolean;
     interactive?: boolean;
+}
+
+// Helper to log events for Rigour Studio
+async function logStudioEvent(cwd: string, event: any) {
+    try {
+        const rigourDir = path.join(cwd, ".rigour");
+        await fs.ensureDir(rigourDir);
+        const eventsPath = path.join(rigourDir, "events.jsonl");
+        const logEntry = JSON.stringify({
+            id: randomUUID(),
+            timestamp: new Date().toISOString(),
+            ...event
+        }) + "\n";
+        await fs.appendFile(eventsPath, logEntry);
+    } catch {
+        // Silent fail
+    }
 }
 
 export async function checkCommand(cwd: string, files: string[] = [], options: CheckOptions = {}) {
@@ -39,11 +57,29 @@ export async function checkCommand(cwd: string, files: string[] = [], options: C
         }
 
         const runner = new GateRunner(config);
+
+        const requestId = randomUUID();
+        await logStudioEvent(cwd, {
+            type: "tool_call",
+            requestId,
+            tool: "rigour_check",
+            arguments: { files }
+        });
+
         const report = await runner.run(cwd, files.length > 0 ? files : undefined);
 
         // Write machine report
         const reportPath = path.join(cwd, config.output.report_path);
         await fs.writeJson(reportPath, report, { spaces: 2 });
+
+        await logStudioEvent(cwd, {
+            type: "tool_response",
+            requestId,
+            tool: "rigour_check",
+            status: report.status === 'PASS' ? 'success' : 'error',
+            content: [{ type: "text", text: `Audit Result: ${report.status}` }],
+            _rigour_report: report
+        });
 
         // Generate Fix Packet v2 on failure
         if (report.status === 'FAIL') {

@@ -4,6 +4,24 @@ import chalk from 'chalk';
 import yaml from 'yaml';
 import { DiscoveryService } from '@rigour-labs/core';
 import { CODE_QUALITY_RULES, DEBUGGING_RULES, COLLABORATION_RULES, AGNOSTIC_AI_INSTRUCTIONS } from './constants.js';
+import { randomUUID } from 'crypto';
+
+// Helper to log events for Rigour Studio
+async function logStudioEvent(cwd: string, event: any) {
+    try {
+        const rigourDir = path.join(cwd, ".rigour");
+        await fs.ensureDir(rigourDir);
+        const eventsPath = path.join(rigourDir, "events.jsonl");
+        const logEntry = JSON.stringify({
+            id: randomUUID(),
+            timestamp: new Date().toISOString(),
+            ...event
+        }) + "\n";
+        await fs.appendFile(eventsPath, logEntry);
+    } catch {
+        // Silent fail
+    }
+}
 
 export interface InitOptions {
     preset?: string;
@@ -140,6 +158,14 @@ export async function initCommand(cwd: string, options: InitOptions = {}) {
     }
 
     console.log(chalk.bold.blue('\n🔍 Rigour Auto-Discovery:'));
+
+    const requestId = randomUUID();
+    await logStudioEvent(cwd, {
+        type: "tool_call",
+        requestId,
+        tool: "rigour_init",
+        arguments: options
+    });
     if (recommendedConfig.preset) {
         console.log(chalk.cyan(`   Role: `) + chalk.bold(recommendedConfig.preset.toUpperCase()));
     }
@@ -162,6 +188,7 @@ export async function initCommand(cwd: string, options: InitOptions = {}) {
     for (const file of requireddocs) {
         const filePath = path.join(cwd, file);
         if (!(await fs.pathExists(filePath))) {
+            await fs.ensureDir(path.dirname(filePath)); // Ensure parent directory exists
             await fs.ensureFile(filePath);
             console.log(chalk.dim(`  - Created ${file}`));
         }
@@ -172,32 +199,27 @@ export async function initCommand(cwd: string, options: InitOptions = {}) {
     await fs.ensureDir(rigourDocsDir);
     const instructionsPath = path.join(rigourDocsDir, 'AGENT_INSTRUCTIONS.md');
 
-    const ruleContent = `# 🛡️ Rigour: Engineering Excellence Protocol
+    const ruleContent = `# 🛡️ Rigour: Mandatory Engineering Governance Protocol
 
-You are an Elite Software Engineer. You do not just write code that "works"; you write code that is **modular, maintainable, and rigorously verified.**
+**You are an AI Engineering Agent governed by Rigour.** 
 
-## 🚦 The Rigour Loop (Mandatory)
-Before claiming "Done" for any task, you MUST follow this loop:
+Your access to this codebase is conditional upon your strict adherence to the **Rigour Governance Protocol**. This is an automated requirement for every engineering task.
 
-1.  **Check**: Run \`npx @rigour-labs/cli check\` to verify compliance.
-2.  **Analyze**: If it fails, read \`rigour-fix-packet.json\` (V2 High-Fidelity) for exact failure points and constraints.
-3.  **Refactor**: Apply **SOLID** and **DRY** principles to resolve the violations according to constraints.
-4.  **Repeat**: Continue until \`npx @rigour-labs/cli check\` returns **PASS**.
+## 🚦 The Mandatory Governance Loop
+You MUST execute this loop for every task. No code changes will be accepted as "Done" until they pass all Rigour quality gates.
 
-## 🛠️ Commands
-\`\`\`bash
-# Verify current state
-npx @rigour-labs/cli check
+1.  **Context Loading**: Call \`rigour_recall\` (MCP) to align with project-specific engineering memory.
+2.  **Verify Patterns**: Before implementing new logic, call \`rigour_check_pattern\` to prevent reinvention and ensure security compliance.
+3.  **Audit Enforcement**: Before finishing, you MUST call \`npx @rigour-labs/cli check\`.
+4.  **Failure Remediation**: If the check returns **FAIL**, you MUST implement all required engineering refinements.
+5.  **PASS or REJECT**: You may only declare a task complete when the check returns **PASS**.
 
-# Self-healing agent loop
-npx @rigour-labs/cli run -- <agent-command>
-\`\`\`
+## ⚖️ Transparency & Accountability
+**Every action, tool call, and logic shift you perform is automatically logged to the project's local audit trail.** This data is visible in real-time in the human-monitored **Rigour Studio**.
 
 ${AGNOSTIC_AI_INSTRUCTIONS}
 ${CODE_QUALITY_RULES}
-
 ${DEBUGGING_RULES}
-
 ${COLLABORATION_RULES}
 `;
 
@@ -360,7 +382,32 @@ ${ruleContent}`;
     }
 
     console.log(chalk.blue('\nRigour is ready. Run `npx @rigour-labs/cli check` to verify your project.'));
+    console.log(chalk.cyan('Next Step: ') + chalk.bold('rigour index') + chalk.dim(' (Populate the Pattern Index)'));
+
+    // Bootstrap initial memory for the Studio
+    const rigourDir = path.join(cwd, ".rigour");
+    await fs.ensureDir(rigourDir);
+    const memPath = path.join(rigourDir, "memory.json");
+    if (!(await fs.pathExists(memPath))) {
+        await fs.writeJson(memPath, {
+            memories: {
+                "project_boot": {
+                    value: `Governance initiated via '${options.preset || 'api'}' preset. This project is now monitored by Rigour Studio.`,
+                    timestamp: new Date().toISOString()
+                }
+            }
+        }, { spaces: 2 });
+    }
+
     console.log(chalk.dim('\n💡 Tip: Planning to use a framework like Next.js?'));
     console.log(chalk.dim('   Run its scaffolding tool (e.g., npx create-next-app) BEFORE rigour init,'));
     console.log(chalk.dim('   or move rigour.yml and docs/ aside temporarily to satisfy empty-directory checks.'));
+
+    await logStudioEvent(cwd, {
+        type: "tool_response",
+        requestId,
+        tool: "rigour_init",
+        status: "success",
+        content: [{ type: "text", text: `Rigour Governance Initialized` }]
+    });
 }

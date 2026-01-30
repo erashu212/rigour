@@ -8,6 +8,7 @@ import {
 import fs from "fs-extra";
 import path from "path";
 import yaml from "yaml";
+import { randomUUID } from "crypto";
 import {
     GateRunner,
     ConfigSchema,
@@ -65,6 +66,23 @@ async function loadMemory(cwd: string): Promise<MemoryStore> {
 async function saveMemory(cwd: string, store: MemoryStore): Promise<void> {
     const memPath = await getMemoryPath(cwd);
     await fs.writeFile(memPath, JSON.stringify(store, null, 2));
+}
+
+// Helper to log events for Rigour Studio
+async function logStudioEvent(cwd: string, event: any) {
+    try {
+        const rigourDir = path.join(cwd, ".rigour");
+        await fs.ensureDir(rigourDir);
+        const eventsPath = path.join(rigourDir, "events.jsonl");
+        const logEntry = JSON.stringify({
+            id: randomUUID(),
+            timestamp: new Date().toISOString(),
+            ...event
+        }) + "\n";
+        await fs.appendFile(eventsPath, logEntry);
+    } catch {
+        // Silent fail - Studio logging is non-blocking and zero-telemetry
+    }
 }
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -259,15 +277,25 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
     const cwd = (args as any)?.cwd || process.cwd();
+    const requestId = randomUUID();
 
     try {
+        await logStudioEvent(cwd, {
+            type: "tool_call",
+            requestId,
+            tool: name,
+            arguments: args
+        });
+
         const config = await loadConfig(cwd);
         const runner = new GateRunner(config);
+
+        let result: any;
 
         switch (name) {
             case "rigour_check": {
                 const report = await runner.run(cwd);
-                return {
+                result = {
                     content: [
                         {
                             type: "text",
@@ -275,12 +303,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         },
                     ],
                 };
+
+                // Add the report to the tool_response log for high-fidelity Studio visualization
+                (result as any)._rigour_report = report;
+                break;
             }
 
             case "rigour_explain": {
                 const report = await runner.run(cwd);
                 if (report.status === "PASS") {
-                    return {
+                    result = {
                         content: [
                             {
                                 type: "text",
@@ -288,25 +320,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                             },
                         ],
                     };
+                } else {
+                    const bullets = report.failures.map((f, i) => {
+                        return `${i + 1}. [${f.id.toUpperCase()}] ${f.title}: ${f.details}${f.hint ? ` (Hint: ${f.hint})` : ''}`;
+                    }).join("\n");
+
+                    result = {
+                        content: [
+                            {
+                                type: "text",
+                                text: `RIGOUR EXPLAIN:\n\n${bullets}`,
+                            },
+                        ],
+                    };
                 }
-
-                const bullets = report.failures.map((f, i) => {
-                    return `${i + 1}. [${f.id.toUpperCase()}] ${f.title}: ${f.details}${f.hint ? ` (Hint: ${f.hint})` : ''}`;
-                }).join("\n");
-
-                return {
-                    content: [
-                        {
-                            type: "text",
-                            text: `RIGOUR EXPLAIN:\n\n${bullets}`,
-                        },
-                    ],
-                };
+                break;
             }
 
             case "rigour_status": {
                 const report = await runner.run(cwd);
-                return {
+                result = {
                     content: [
                         {
                             type: "text",
@@ -319,12 +352,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         },
                     ],
                 };
+                break;
             }
 
             case "rigour_get_fix_packet": {
                 const report = await runner.run(cwd);
                 if (report.status === "PASS") {
-                    return {
+                    result = {
                         content: [
                             {
                                 type: "text",
@@ -332,32 +366,33 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                             },
                         ],
                     };
+                } else {
+                    const packet = report.failures.map((f, i) => {
+                        let text = `FIX TASK ${i + 1}: [${f.id.toUpperCase()}] ${f.title}\n`;
+                        text += `   - CONTEXT: ${f.details}\n`;
+                        if (f.files && f.files.length > 0) {
+                            text += `   - TARGET FILES: ${f.files.join(", ")}\n`;
+                        }
+                        if (f.hint) {
+                            text += `   - REFACTORING GUIDANCE: ${f.hint}\n`;
+                        }
+                        return text;
+                    }).join("\n---\n");
+
+                    result = {
+                        content: [
+                            {
+                                type: "text",
+                                text: `ENGINEERING REFINEMENT REQUIRED:\n\nThe project state violated ${report.failures.length} quality gates. You MUST address these failures before declaring the task complete:\n\n${packet}`,
+                            },
+                        ],
+                    };
                 }
-
-                const packet = report.failures.map((f, i) => {
-                    let text = `FIX TASK ${i + 1}: [${f.id.toUpperCase()}] ${f.title}\n`;
-                    text += `   - CONTEXT: ${f.details}\n`;
-                    if (f.files && f.files.length > 0) {
-                        text += `   - TARGET FILES: ${f.files.join(", ")}\n`;
-                    }
-                    if (f.hint) {
-                        text += `   - REFACTORING GUIDANCE: ${f.hint}\n`;
-                    }
-                    return text;
-                }).join("\n---\n");
-
-                return {
-                    content: [
-                        {
-                            type: "text",
-                            text: `ENGINEERING REFINEMENT REQUIRED:\n\nThe project state violated ${report.failures.length} quality gates. You MUST address these failures before declaring the task complete:\n\n${packet}`,
-                        },
-                    ],
-                };
+                break;
             }
 
             case "rigour_list_gates":
-                return {
+                result = {
                     content: [
                         {
                             type: "text",
@@ -370,9 +405,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         },
                     ],
                 };
+                break;
 
             case "rigour_get_config":
-                return {
+                result = {
                     content: [
                         {
                             type: "text",
@@ -380,6 +416,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         },
                     ],
                 };
+                break;
 
             case "rigour_remember": {
                 const { key, value } = args as any;
@@ -389,7 +426,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     timestamp: new Date().toISOString(),
                 };
                 await saveMemory(cwd, store);
-                return {
+                result = {
                     content: [
                         {
                             type: "text",
@@ -397,6 +434,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         },
                     ],
                 };
+                break;
             }
 
             case "rigour_recall": {
@@ -406,7 +444,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 if (key) {
                     const memory = store.memories[key];
                     if (!memory) {
-                        return {
+                        result = {
                             content: [
                                 {
                                     type: "text",
@@ -414,42 +452,44 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                                 },
                             ],
                         };
+                    } else {
+                        result = {
+                            content: [
+                                {
+                                    type: "text",
+                                    text: `RECALLED MEMORY [${key}]:\n${memory.value}\n\n(Stored: ${memory.timestamp})`,
+                                },
+                            ],
+                        };
                     }
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: `RECALLED MEMORY [${key}]:\n${memory.value}\n\n(Stored: ${memory.timestamp})`,
-                            },
-                        ],
-                    };
+                } else {
+                    const keys = Object.keys(store.memories);
+                    if (keys.length === 0) {
+                        result = {
+                            content: [
+                                {
+                                    type: "text",
+                                    text: "NO MEMORIES STORED. Use rigour_remember to persist important instructions.",
+                                },
+                            ],
+                        };
+                    } else {
+                        const allMemories = keys.map(k => {
+                            const mem = store.memories[k];
+                            return `## ${k}\n${mem.value}\n(Stored: ${mem.timestamp})`;
+                        }).join("\n\n---\n\n");
+
+                        result = {
+                            content: [
+                                {
+                                    type: "text",
+                                    text: `RECALLED ALL MEMORIES (${keys.length} items):\n\n${allMemories}\n\n---\nIMPORTANT: Follow these stored instructions throughout this session.`,
+                                },
+                            ],
+                        };
+                    }
                 }
-
-                const keys = Object.keys(store.memories);
-                if (keys.length === 0) {
-                    return {
-                        content: [
-                            {
-                                type: "text",
-                                text: "NO MEMORIES STORED. Use rigour_remember to persist important instructions.",
-                            },
-                        ],
-                    };
-                }
-
-                const allMemories = keys.map(k => {
-                    const mem = store.memories[k];
-                    return `## ${k}\n${mem.value}\n(Stored: ${mem.timestamp})`;
-                }).join("\n\n---\n\n");
-
-                return {
-                    content: [
-                        {
-                            type: "text",
-                            text: `RECALLED ALL MEMORIES (${keys.length} items):\n\n${allMemories}\n\n---\nIMPORTANT: Follow these stored instructions throughout this session.`,
-                        },
-                    ],
-                };
+                break;
             }
 
             case "rigour_forget": {
@@ -457,7 +497,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 const store = await loadMemory(cwd);
 
                 if (!store.memories[key]) {
-                    return {
+                    result = {
                         content: [
                             {
                                 type: "text",
@@ -465,19 +505,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                             },
                         ],
                     };
+                } else {
+                    delete store.memories[key];
+                    await saveMemory(cwd, store);
+
+                    result = {
+                        content: [
+                            {
+                                type: "text",
+                                text: `MEMORY DELETED: "${key}" has been removed.`,
+                            },
+                        ],
+                    };
                 }
-
-                delete store.memories[key];
-                await saveMemory(cwd, store);
-
-                return {
-                    content: [
-                        {
-                            type: "text",
-                            text: `MEMORY DELETED: "${key}" has been removed.`,
-                        },
-                    ],
-                };
+                break;
             }
 
             case "rigour_check_pattern": {
@@ -546,7 +587,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     resultText += `\nRECOMMENDED ACTION: ${recommendation}`;
                 }
 
-                return {
+                result = {
                     content: [
                         {
                             type: "text",
@@ -554,12 +595,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         },
                     ],
                 };
+                break;
             }
 
             case "rigour_security_audit": {
                 const security = new SecurityDetector(cwd);
                 const summary = await security.getSecuritySummary();
-                return {
+                result = {
                     content: [
                         {
                             type: "text",
@@ -567,13 +609,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         },
                     ],
                 };
+                break;
             }
 
             default:
                 throw new Error(`Unknown tool: ${name}`);
         }
+
+        await logStudioEvent(cwd, {
+            type: "tool_response",
+            requestId,
+            tool: name,
+            status: "success",
+            content: result.content,
+            _rigour_report: (result as any)._rigour_report
+        });
+
+        return result;
+
     } catch (error: any) {
-        return {
+        const errorResponse = {
             content: [
                 {
                     type: "text",
@@ -582,6 +637,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             ],
             isError: true,
         };
+
+        await logStudioEvent(cwd, {
+            type: "tool_response",
+            requestId,
+            tool: name,
+            status: "error",
+            error: error.message,
+            content: errorResponse.content
+        });
+
+        return errorResponse;
     }
 });
 

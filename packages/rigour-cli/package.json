@@ -5,6 +5,11 @@
     "bin": {
         "rigour": "dist/cli.js"
     },
+    "files": [
+        "dist",
+        "studio-dist",
+        "templates"
+    ],
     "repository": {
         "type": "git",
         "url": "https://github.com/rigour-labs/rigour"
@@ -14,7 +19,8 @@
         "provenance": true
     },
     "scripts": {
-        "build": "tsc",
+        "build": "tsc && pnpm bundle-studio",
+        "bundle-studio": "mkdir -p studio-dist && cp -r ../rigour-studio/dist/* studio-dist/",
         "test": "vitest run"
     },
     "dependencies": {
